@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useAuth } from "@workos-inc/authkit-react";
 import LandingPage from "./routes/LandingPage";
 import ReportPage from "./routes/ReportPage";
+import LegalPage from "./routes/LegalPage";
 import type { Route } from "./router";
 
 export default function App({ route }: { route: Route }) {
@@ -17,6 +18,9 @@ export default function App({ route }: { route: Route }) {
 
   if (route.name === "audit") {
     return <ReportPage auditId={route.id} />;
+  }
+  if (route.name === "legal") {
+    return <LegalPage doc={route.doc} />;
   }
   return <LandingPage />;
 }

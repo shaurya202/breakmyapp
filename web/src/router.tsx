@@ -8,11 +8,16 @@ import {
 
 /** Tiny history router — no external routing dependency. */
 
-export type Route = { name: "landing" } | { name: "audit"; id: string };
+export type Route =
+  | { name: "landing" }
+  | { name: "audit"; id: string }
+  | { name: "legal"; doc: "privacy" | "terms" };
 
 function parsePath(pathname: string): Route {
   const m = /^\/audit\/([a-z0-9]+)\/?$/i.exec(pathname);
   if (m) return { name: "audit", id: m[1] };
+  if (/^\/(privacy|privacy\.html)\/?$/i.test(pathname)) return { name: "legal", doc: "privacy" };
+  if (/^\/(terms|terms\.html)\/?$/i.test(pathname)) return { name: "legal", doc: "terms" };
   return { name: "landing" };
 }
 

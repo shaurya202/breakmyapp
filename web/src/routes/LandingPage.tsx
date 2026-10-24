@@ -378,6 +378,10 @@ export default function LandingPage() {
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-baseline justify-between gap-x-8 gap-y-2 px-5 py-6 sm:px-8">
           <span className="font-mono text-sm font-semibold uppercase tracking-[0.14em]">BreakMyApp</span>
           <span className="text-sm text-paper/70">Automated bug-testing with zero guesswork — every run on the record.</span>
+          <div className="flex gap-6 text-sm">
+            <a className="text-paper/70 underline hover:text-paper" href="/privacy">Privacy</a>
+            <a className="text-paper/70 underline hover:text-paper" href="/terms">Terms</a>
+          </div>
         </div>
       </footer>
     </div>
