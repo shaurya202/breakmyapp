@@ -101,7 +101,6 @@ export const startFromUrl = mutation({
       teracPanelStatus: "NOT_DISPATCHED",
       runStartedAt: now,
     });
-
     await ctx.scheduler.runAfter(
       0,
       internal.solariRunner.runDeterministicSuite,
@@ -182,6 +181,20 @@ export const getReport = query({
         ? null
         : (audit.runFinishedAt ?? audit._creationTime) + RERUN_WINDOW_MS;
 
+    // Paywall quantification (fix A): counts, not contents — metadata only,
+    // safe to expose pre-unlock. Lets the paywall say exactly what the $9.99
+    // opens instead of a vague "more report".
+    const deliverableCounts = {
+      reproSequences: findings.length,
+      screenshots: findings.filter((f) => f.screenshotStorageId).length,
+      patchDiffs: findings.filter(
+        (f) => typeof f.aiSuggestedPatch === "string" && f.aiSuggestedPatch.trim() !== ""
+      ).length,
+      errorLogs: findings.filter(
+        (f) => typeof f.rawErrorLog === "string" && f.rawErrorLog.trim() !== ""
+      ).length,
+    };
+
     return {
       audit: {
         id: audit._id,
@@ -210,6 +223,7 @@ export const getReport = query({
           !PAYWALLS_DISABLED &&
           audit.status === "COMPLETED" && audit.criticalCount > 0 &&
           !audit.isUnlocked && !payerHasShield,
+        deliverableCounts,
         rerunDeadline,
         errorMessage: audit.errorMessage ?? null,
         createdAt: audit._creationTime,
@@ -305,6 +319,15 @@ export const createInternalRun = internalMutation({
     bypassDedupe: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    if (args.source === "EXA_AUTONOMOUS_HUNT") {
+      const recent = await ctx.db.query("audits")
+        .withIndex("by_source", (q) => q.eq("source", "EXA_AUTONOMOUS_HUNT"))
+        .order("desc")
+        .take(5);
+      if (recent.length === 5 && recent[4]._creationTime >= Date.now() - 24 * 60 * 60 * 1000) {
+        return null;
+      }
+    }
     const normalized = normalizeUrl(args.targetUrl);
     if (!isPublicWebUrl(normalized)) return null;
     try {
@@ -354,6 +377,9 @@ export const createInternalRun = internalMutation({
       teracPanelStatus: "NOT_DISPATCHED",
       runStartedAt: now,
     });
+    if (args.source === "EXA_AUTONOMOUS_HUNT") {
+      await ctx.db.insert("outreach", { auditId, status: "WAITING" });
+    }
     await ctx.scheduler.runAfter(
       0,
       internal.solariRunner.runDeterministicSuite,

@@ -315,6 +315,10 @@ function ReportBody({ auditId, refetch }: { auditId: string; refetch: () => void
                   <CheckoutPanel
                     auditId={a.id}
                     unlockPriceCents={a.unlockPriceCents}
+                    deliverableCounts={a.deliverableCounts}
+                    suiteVersion={a.suiteVersion}
+                    runSeed={a.runSeed}
+                    determinismHash={a.determinismHash}
                     onUnlocked={refetch}
                   />
                 </div>

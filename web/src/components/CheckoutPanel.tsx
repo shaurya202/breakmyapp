@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAction } from "convex/react";
 import { WHOP_CREATE_CHECKOUT_SESSION } from "../convexApi";
 import type { WhopSessionResult, Id } from "../convexApi";
+import type { DeliverableCounts } from "../convexApi";
 import { WhopCheckoutEmbed } from "@whop/checkout/react";
 
 export type Tier = "FULL_AUTOPSY" | "SHIELD";
@@ -87,17 +88,28 @@ export function CheckoutEmbed({
 
 /**
  * Deep-fix paywall (FR-4). Renders after the run completes and only when the
- * deterministic suite found criticals and the audit is still locked. All
- * three Whop answer paths degrade gracefully — the report itself (titles,
- * severities, Bug #1, manifest) was already free (FR-3).
+ * deterministic suite found criticals and the audit is still locked.
+ *
+ * Conversion layer: quantifies exactly what the unlock opens (server-counted),
+ * shows the proof-of-work chips BEFORE any money moves, and states the
+ * refund/re-run guarantee up front. The report itself (titles, severities,
+ * Bug #1, manifest) was already free (FR-3).
  */
 export default function CheckoutPanel({
   auditId,
   unlockPriceCents,
+  deliverableCounts,
+  suiteVersion,
+  runSeed,
+  determinismHash,
   onUnlocked,
 }: {
   auditId: Id<"audits">;
   unlockPriceCents: number;
+  deliverableCounts: DeliverableCounts;
+  suiteVersion: string;
+  runSeed: number;
+  determinismHash: string | null;
   onUnlocked: () => void;
 }) {
   const { start, pendingTier, session, fallbackUrl, degraded } =
@@ -115,12 +127,60 @@ export default function CheckoutPanel({
 
   return (
     <div className="border-2 border-ink bg-paper p-6 sm:p-8">
-      <p className="kicker">Full report</p>
+      <p className="kicker">Full autopsy</p>
       <h2 className="mt-2 text-section font-bold">
-        Unlock full bug details and code fixes
+        See the exact crash reproduction — and the fixes
       </h2>
       <p className="mt-3 max-w-xl text-sm leading-relaxed text-mut">
-        Get step-by-step reproduction guides, screenshots, and ready-to-copy code fixes for every bug, or protect your app after future updates.
+        The titles above are free. The $9 autopsy is the evidence nobody else
+        can produce: step-by-step repro, raw error logs, the captured
+        screenshots, and ready-to-paste code fixes — all from the exact same
+        seed this run used.
+      </p>
+      {(
+        <div className="mt-4 border border-line bg-sink px-4 py-3">
+          <p className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mut">
+            What you're unlocking
+          </p>
+          <ul className="mt-2 space-y-1 text-sm leading-6">
+            <li>
+              {deliverableCounts.reproSequences} step-by-step reproduction
+              sequence{deliverableCounts.reproSequences === 1 ? "" : "s"}
+            </li>
+            {deliverableCounts.screenshots > 0 ? (
+              <li>
+                {deliverableCounts.screenshots} captured screenshot
+                {deliverableCounts.screenshots === 1 ? "" : "s"}
+              </li>
+            ) : null}
+            {deliverableCounts.patchDiffs > 0 ? (
+              <li>
+                {deliverableCounts.patchDiffs} ready-to-paste code fix
+                {deliverableCounts.patchDiffs === 1 ? "" : "es"}
+              </li>
+            ) : null}
+            {deliverableCounts.errorLogs > 0 ? (
+              <li>
+                {deliverableCounts.errorLogs} raw error log
+                {deliverableCounts.errorLogs === 1 ? "" : "s"}
+              </li>
+            ) : null}
+            <li>1 free re-test of the same seed after you fix the bugs</li>
+          </ul>
+        </div>
+      )}
+      <div className="mt-4 flex flex-wrap gap-2 font-mono text-[11px] text-mut">
+        <span className="border border-line px-2 py-1">suite {suiteVersion}</span>
+        <span className="border border-line px-2 py-1">seed {runSeed}</span>
+        {determinismHash ? (
+          <span className="border border-line px-2 py-1">sha256 {determinismHash.slice(0, 16)}…</span>
+        ) : null}
+        <span className="border border-line px-2 py-1">72h re-run window</span>
+      </div>
+      <p className="mt-3 text-xs leading-relaxed text-mut">
+        Standing behind it: this exact reproduction was stored before you paid,
+        so you know what you're buying — and if it doesn't hold up on your side,
+        we refund on request. The unlock revokes itself on refund automatically.
       </p>
       {fallbackUrl ? (
         <a
@@ -153,7 +213,10 @@ export default function CheckoutPanel({
         </button>
       </div>
       <p className="mt-4 border-t border-line pt-3 text-xs leading-relaxed text-mut">
-        Full Report ($9): Step-by-step reproduction, error logs, screenshots, ready-to-use code fixes, plus 1 free re-test after you fix bugs. Continuous Monitoring ($29/mo): Re-tests your site automatically after every update.
+        Full Autopsy ($9): every reproduction sequence, error log, screenshot and
+        code fix from this exact run, plus 1 free same-seed re-test within 72h.
+        Continuous Monitoring ($29/mo): automatic re-tests after every site
+        update. Refund anytime the reproduction doesn't hold.
       </p>
       {degraded ? (
         <div role="alert" className="mt-4 border-l-2 border-stamp bg-sink px-3 py-2 text-sm">

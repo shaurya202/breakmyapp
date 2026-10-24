@@ -49,6 +49,13 @@ export type TeracPanelStatus =
   | "CONFIRMED"
   | "CONTESTED";
 
+export type DeliverableCounts = {
+  reproSequences: number;
+  screenshots: number;
+  patchDiffs: number;
+  errorLogs: number;
+};
+
 export type AuditReport = {
   id: Id<"audits">;
   targetUrl: string;
@@ -73,6 +80,7 @@ export type AuditReport = {
   teracPanelStatus: TeracPanelStatus;
   runCompleted: boolean;
   unlockEnabled: boolean;
+  deliverableCounts: DeliverableCounts;
   rerunDeadline: number | null;
   errorMessage: string | null;
   createdAt: number;
