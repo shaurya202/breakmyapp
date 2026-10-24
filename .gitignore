@@ -14,5 +14,6 @@ test-results/
 brag-output*/
 .agents/
 .claude/
+.wrangler/
 skills-lock.json
 .env.local.bak
