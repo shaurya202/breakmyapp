@@ -28,17 +28,20 @@ test("invalid report link has a recovery path", async ({ page }) => {
 });
 
 test("live audit: submit, progress, completed report, reload, and back", async ({ page }, testInfo) => {
+  // Cold-started Solari sessions can push the first run past 3 minutes.
+  test.setTimeout(420_000);
   test.skip(!process.env.RUN_LIVE_E2E, "Set RUN_LIVE_E2E=1 for the real Convex + Solari integration (uses a cloud browser session).");
   const errors: string[] = [];
   page.on("pageerror", e => errors.push(e.message));
   await page.goto("/");
-  await page.getByRole("textbox", { name: /Website URL to audit|Your app URL/ }).fill("https://example.com/?qa=e2e-v1-1");
+  await page.getByRole("textbox", { name: /Website URL to audit|Your app URL/ }).fill("https://example.com/?qa=e2e-v1-2");
   await page.getByRole("button", { name: /Run free (deterministic )?audit/i }).click();
   await expect(page).toHaveURL(/\/audit\/[a-z0-9]+/, { timeout: 20_000 });
   const reportUrl = page.url();
   await expect(page.getByRole("heading", { name: "Example", exact: true })).toBeVisible();
-  await expect(page.getByText("completed", { exact: true }).first()).toBeVisible({ timeout: 150_000 });
-  await expect(page.getByText("run failed", { exact: true })).toHaveCount(0);
+  // StatusPill renders Title Case ("Completed"); match case-insensitively.
+  await expect(page.getByText(/^completed$/i).first()).toBeVisible({ timeout: 360_000 });
+  await expect(page.getByText(/run failed/i)).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Example", exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("completed-report.png"), fullPage: true });
