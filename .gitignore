@@ -1,6 +1,11 @@
 node_modules/
 .convex/
 dist/
+# web/dist is committed on purpose: Cloudflare Workers Builds sometimes
+# deploys with an empty build command, and assets.directory requires a
+# fresh clone to always contain the built assets. Rebuilt by `npm run build`.
+!web/dist/
+!web/dist/**
 *.log
 
 .env

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- BreakMyApp masthead badge: the ink square + > glyph from TreasuryHeader -->
+  <rect width="32" height="32" rx="4" fill="#1b1812"/>
+  <path d="M13 10.5 L19 16 L13 21.5" stroke="#f2efe7" stroke-width="3" fill="none" stroke-linecap="square" stroke-linejoin="miter"/>
+</svg>
