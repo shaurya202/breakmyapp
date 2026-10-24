@@ -4,7 +4,8 @@ import FindingCard, { type Finding } from "./FindingCard";
 /**
  * Findings table (FR-3 free layer): every bug title + severity visible;
  * Bug #1 rendered in full unblurred detail; locked deliverables stay
- * blurred — never fake-unlocked client-side.
+ * locked — never fake-unlocked client-side. First card carries the heavy
+ * top rule; the header is a ruled ledger heading, not a chip stack.
  */
 export default function FindingsList({
   findings,
@@ -26,23 +27,30 @@ export default function FindingsList({
 
   if (totalBugs > 0 && findings.length === 0) {
     return (
-      <p className="text-sm text-neutral-500" role="status">
-        {totalBugs} bugs recorded. Findings are still loading…
+      <p className="font-mono text-sm text-mut" role="status">
+        {totalBugs} bugs caught. Loading bug list…
       </p>
     );
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
-        <h2 className="text-2xl font-bold tracking-tight text-white">
-          Findings <span className="font-mono text-base font-normal text-neutral-500">{findings.length}</span>
+    <section aria-label="Findings">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-ink pb-3">
+        <h2 className="text-section font-bold tracking-tight">
+          Findings{" "}
+          <span className="font-mono text-base font-semibold tabular-nums text-mut">
+            {findings.length}
+          </span>
         </h2>
-        <span className="font-mono text-xs text-neutral-500">Same seed · same suite · same order</span>
+        <span className="font-mono text-xs text-mut">
+          Tested across desktop and mobile screens
+        </span>
       </div>
-      {findings.map((f) => (
-        <FindingCard key={f._id} finding={f} unlockable={unlockable} />
-      ))}
-    </div>
+      <div>
+        {findings.map((f) => (
+          <FindingCard key={f._id} finding={f} unlockable={unlockable} />
+        ))}
+      </div>
+    </section>
   );
 }

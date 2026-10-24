@@ -14,8 +14,27 @@
 import { env, action, internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import { normalizeUrl, isPublicWebUrl } from "./deterministic";
 
 const WHOP_API = "https://api.whop.com/api/v1";
+
+// Same private-network policy as audits.startFromUrl — public HTTPS only.
+const SHIELD_BLOCKED_HOST_PATTERNS = [
+  /^localhost$/i,
+  /^127\./,
+  /^10\./,
+  /^192\.168\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^169\.254\./,
+  /^0\./,
+  /^\[?::1\]?$/,
+  /^\[?[0-9a-f:]+\]$/,
+];
+
+function isShieldProhibitedHost(host: string): boolean {
+  const h = host.replace(/^www\./i, "");
+  return SHIELD_BLOCKED_HOST_PATTERNS.some((p) => p.test(h));
+}
 
 type AuditLite = {
   exists: boolean;
@@ -39,6 +58,56 @@ async function whopRequest(
       ...(init?.headers ?? {}),
     },
   });
+}
+
+/**
+ * Shared checkout-config creation (audit-attached and standalone shield
+ * checkout both land here). Retries with the alternate plan field-shape once;
+ * returns whatever purchase URL / session id came back, or nothing on reject.
+ */
+async function createWhopCheckoutConfig(
+  apiKey: string,
+  planId: string,
+  metadata: Record<string, string>
+): Promise<{ rejectedStatus?: number; unreachable?: string; purchaseUrl?: string; sessionId?: string }> {
+  try {
+    let resp = await whopRequest(apiKey, "/checkout_configurations", {
+      method: "POST",
+      body: JSON.stringify({ plan_id: planId, metadata }),
+    });
+    let payload: any = resp.ok
+      ? await resp.json().catch(() => undefined)
+      : undefined;
+
+    // Some Whop API versions field-shape the plan reference differently;
+    // retry once with planId if the payload was rejected.
+    if (!resp.ok) {
+      resp = await whopRequest(apiKey, "/checkout_configurations", {
+        method: "POST",
+        body: JSON.stringify({ planId, metadata }),
+      });
+      if (resp.ok) {
+        payload = await resp.json().catch(() => undefined);
+      }
+    }
+
+    const purchaseUrl: string | undefined =
+      payload?.purchase_url ??
+      payload?.checkout_config?.purchase_url ??
+      payload?.data?.purchase_url;
+    const sessionId: string | undefined =
+      payload?.id ?? payload?.checkout_config?.id ?? payload?.data?.id;
+
+    if (resp.ok && (purchaseUrl || sessionId)) {
+      return {
+        ...(purchaseUrl ? { purchaseUrl } : {}),
+        ...(sessionId ? { sessionId } : {}),
+      };
+    }
+    return { rejectedStatus: resp.status };
+  } catch (e) {
+    return { unreachable: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 /** Public: the report page calls this when the founder clicks Unlock. */
@@ -109,58 +178,101 @@ export const createCheckoutSession = action({
       app: "BreakMyApp",
     };
 
-    let resp: Response | undefined;
-    try {
-      resp = await whopRequest(apiKey, "/checkout_configurations", {
-        method: "POST",
-        body: JSON.stringify({ plan_id: planId, metadata }),
-      });
-      let payload: any = resp.ok
-        ? await resp.json().catch(() => undefined)
-        : undefined;
+    const cfg = await createWhopCheckoutConfig(apiKey, planId, metadata);
 
-      // Some Whop API versions field-shape the plan reference differently;
-      // retry once with planId if the payload was rejected.
-      if (!resp.ok) {
-        resp = await whopRequest(apiKey, "/checkout_configurations", {
-          method: "POST",
-          body: JSON.stringify({ planId, metadata }),
-        });
-        if (resp.ok) {
-          payload = await resp.json().catch(() => undefined);
-        }
-      }
-
-      const purchaseUrl: string | undefined =
-        payload?.purchase_url ??
-        payload?.checkout_config?.purchase_url ??
-        payload?.data?.purchase_url;
-      const sessionId: string | undefined =
-        payload?.id ?? payload?.checkout_config?.id ?? payload?.data?.id;
-
-      if (purchaseUrl || sessionId) {
-        await ctx.runMutation(internal.audits.setWhopCheckout, {
-          auditId: args.auditId,
-          ...(sessionId ? { sessionId } : {}),
-          ...(purchaseUrl ? { checkoutUrl: purchaseUrl } : {}),
-        });
-        return {
-          configured: true,
-          ...(purchaseUrl ? { purchaseUrl } : {}),
-          ...(sessionId ? { sessionId } : {}),
-          planId,
-        };
-      }
+    if (cfg.unreachable) {
       return {
         configured: false,
-        message: `Whop rejected the request (${resp.status}).`,
-      };
-    } catch (e) {
-      return {
-        configured: false,
-        message: `Whop unreachable: ${e instanceof Error ? e.message : String(e)}`,
+        message: `Whop unreachable: ${cfg.unreachable}`,
       };
     }
+    if (cfg.purchaseUrl || cfg.sessionId) {
+      await ctx.runMutation(internal.audits.setWhopCheckout, {
+        auditId: args.auditId,
+        ...(cfg.sessionId ? { sessionId: cfg.sessionId } : {}),
+        ...(cfg.purchaseUrl ? { checkoutUrl: cfg.purchaseUrl } : {}),
+      });
+      return {
+        configured: true,
+        ...(cfg.purchaseUrl ? { purchaseUrl: cfg.purchaseUrl } : {}),
+        ...(cfg.sessionId ? { sessionId: cfg.sessionId } : {}),
+        planId,
+      };
+    }
+    return {
+      configured: false,
+      message: `Whop rejected the request (${cfg.rejectedStatus ?? "unknown"}).`,
+    };
+  },
+});
+
+/**
+ * Public: Launch Shield checkout without an audit row. The landing page calls
+ * this with the URL to protect; the Whop checkout link carries targetUrl in
+ * metadata, so the signed `membership.went_valid` webhook can activate the
+ * shield on exactly that URL. Same trust path as the audit-attached checkout:
+ * the client only ever opens a Whop-hosted link, never posts money state.
+ */
+export const createShieldCheckout = action({
+  args: { targetUrl: v.string() },
+  returns: v.object({
+    configured: v.boolean(),
+    purchaseUrl: v.optional(v.string()),
+    message: v.optional(v.string()),
+  }),
+  handler: async (_ctx, args) => {
+    const apiKey = env.WHOP_API_KEY;
+    const planId = env.WHOP_PLAN_ID_SHIELD;
+
+    if (!apiKey || !apiKey.trim()) {
+      return {
+        configured: false,
+        message: "Whop not linked yet — payments disabled in this environment.",
+      };
+    }
+    if (!planId) {
+      return {
+        configured: false,
+        message:
+          "Whop plan not linked yet (create the Launch Shield plan in the Whop dashboard and set WHOP_PLAN_ID_SHIELD).",
+      };
+    }
+
+    const normalized = normalizeUrl(args.targetUrl);
+    let host = "";
+    try {
+      host = new URL(normalized).hostname;
+    } catch {
+      return { configured: false, message: "That doesn't look like a URL. Paste a full web address." };
+    }
+    if (!isPublicWebUrl(normalized) || isShieldProhibitedHost(host)) {
+      return {
+        configured: false,
+        message: "Only public web URLs can be protected (no localhost / private IPs).",
+      };
+    }
+
+    const metadata = {
+      targetUrl: normalized,
+      tier: "shield_29",
+      app: "BreakMyApp",
+    };
+
+    const cfg = await createWhopCheckoutConfig(apiKey, planId, metadata);
+
+    if (cfg.unreachable) {
+      return {
+        configured: false,
+        message: `Whop unreachable: ${cfg.unreachable}`,
+      };
+    }
+    if (cfg.purchaseUrl) {
+      return { configured: true, purchaseUrl: cfg.purchaseUrl };
+    }
+    return {
+      configured: false,
+      message: `Whop rejected the request (${cfg.rejectedStatus ?? "unknown"}).`,
+    };
   },
 });
 

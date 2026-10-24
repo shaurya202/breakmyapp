@@ -12,6 +12,7 @@
     "prospect": "node scripts/exa-prospect.mjs discover",
     "prospect:full": "node scripts/exa-prospect.mjs full",
     "smoke": "convex run audits:listRecent '{\"limit\":10}'",
+    "terac:mcp": "node scripts/terac-mcp.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p convex/tsconfig.json",
     "test:e2e": "playwright test",

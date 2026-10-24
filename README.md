@@ -51,7 +51,12 @@ npm run web:dev         # frontend (VITE_CONVEX_URL in web/.env)
 | `WHOP_PLAN_ID_SHIELD` | Whop plan id | Shield button disabled |
 | `WHOP_COMPANY_ID` | Whop team id | not yet enforced |
 | `APP_BASE_URL` | Where the frontend is served (e.g. `https://app.example.dev`) | run manifest links use the .dev base |
+| `WORKOS_CLIENT_ID` | WorkOS dashboard (`client_01…`) | accounts are unusable; app still runs unauthenticated |
 | `VITE_CONVEX_URL` | Frontend env in web/.env | set to your Convex deployment before building |
+| `VITE_WORKOS_CLIENT_ID` | Frontend env in web/.env (same client_01… value, public) | sign-in/sign-up buttons hidden when unset |
+| `VITE_WORKOS_REDIRECT_URI` | Frontend env in web/.env | defaults to `<origin>/callback` |
+
+**WorkOS AuthKit (accounts).** Convex validates AuthKit access tokens (`convex/auth.config.ts`, official customJwt recipe). Setup: set `WORKOS_CLIENT_ID` on the Convex deployment (`npx convex env set WORKOS_CLIENT_ID client_01…`), set `VITE_WORKOS_CLIENT_ID` + `VITE_WORKOS_REDIRECT_URI` in `web/.env`, and in the WorkOS dashboard register the redirect URI (`http://localhost:5173/callback` locally, your production domain in prod) and add your frontend origin under Authentication → Sessions → CORS. `convex.json` carries the dev `authKit` block so a Convex-managed WorkOS team configures these automatically during `npx convex dev`. Money state is unaffected — payments remain Whop-only.
 
 **Whop webhook URL** to paste into the dashboard: `https://<deployment>.convex.site/whop/webhook`. Events required: `payment.succeeded`, `payment.refunded`, `membership.went_valid`, `membership.went_invalid` / `expired` / `canceled`. Money-state only flips inside signature-verified webhook handling; the client can never fake an unlock.
 

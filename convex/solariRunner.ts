@@ -243,7 +243,7 @@ async function executeSuite(
     const criticalCount = deduped.filter((f) => f.severity === "CRITICAL").length;
     const totalMs = Date.now() - t0;
 
-    const afterTitles = deduped.map((f) => f.title);
+    const afterTitles: string[] = deduped.map((f: { title: string }) => f.title);
     const resolvedTitles: string[] = opts.isRerun
       ? beforeTitles.filter((t) => !afterTitles.includes(t))
       : [];

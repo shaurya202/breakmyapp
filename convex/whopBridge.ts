@@ -68,6 +68,11 @@ export const applyUnlock = internalMutation({
       revenueCents: args.amountCents,
       feeCents: whopFeeCents(args.amountCents),
     });
+
+    // PRD FR-6: Paid unlock dispatches Terac verified human labor panel
+    await ctx.scheduler.runAfter(0, internal.terac.dispatchAuditPanels, {
+      auditId: args.auditId,
+    });
   },
 });
 

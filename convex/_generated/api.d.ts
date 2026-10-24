@@ -17,6 +17,8 @@ import type * as hunterBridge from "../hunterBridge.js";
 import type * as runnerBridge from "../runnerBridge.js";
 import type * as shield from "../shield.js";
 import type * as solariRunner from "../solariRunner.js";
+import type * as terac from "../terac.js";
+import type * as teracBridge from "../teracBridge.js";
 import type * as treasury from "../treasury.js";
 import type * as whop from "../whop.js";
 import type * as whopBridge from "../whopBridge.js";
@@ -37,6 +39,8 @@ declare const fullApi: ApiFromModules<{
   runnerBridge: typeof runnerBridge;
   shield: typeof shield;
   solariRunner: typeof solariRunner;
+  terac: typeof terac;
+  teracBridge: typeof teracBridge;
   treasury: typeof treasury;
   whop: typeof whop;
   whopBridge: typeof whopBridge;

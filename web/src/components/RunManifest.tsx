@@ -3,7 +3,8 @@ import { hexSeed, truncateMiddle } from "../lib/format";
 
 /**
  * The anti-fraud seal (FR-3): seed, suite version, determinismHash on-page.
- * Click the hash to copy the full value.
+ * Reads as lab-calibration data — a hairline strip, tabular figures, copy
+ * affordance preserved. Click the hash to copy the full value.
  */
 export default function RunManifest({
   runSeed,
@@ -31,53 +32,49 @@ export default function RunManifest({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-line bg-panel px-4 py-3 font-mono text-xs text-neutral-300" aria-label="Run manifest">
-      <span>
-        <span className="text-neutral-500">Seed </span>
-        <span className="text-acid">{hexSeed(runSeed)}</span>
-      </span>
-      <span className="text-neutral-500" aria-hidden="true">/</span>
-      <span>
-        <span className="text-neutral-500">Suite </span>
-        <span className="text-neutral-200">{suiteVersion}</span>
-      </span>
+    <div
+      role="group"
+      aria-label="Run details"
+      className="flex flex-wrap items-center gap-x-6 gap-y-2 border-y border-ink/20 py-2.5"
+    >
+      <dl className="flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-xs">
+        <div className="inline-flex items-baseline gap-2">
+          <dt className="kicker">Test ID</dt>
+          <dd className="tabular-nums">{hexSeed(runSeed)}</dd>
+        </div>
+        <div className="inline-flex items-baseline gap-2">
+          <dt className="kicker">Suite</dt>
+          <dd>{suiteVersion}</dd>
+        </div>
+        {solariBrowserBootMs != null ? (
+          <div className="inline-flex items-baseline gap-2">
+            <dt className="kicker">Browser boot</dt>
+            <dd className="tabular-nums">{solariBrowserBootMs}ms</dd>
+          </div>
+        ) : null}
+        {solariSandboxBootMs != null ? (
+          <div className="inline-flex items-baseline gap-2">
+            <dt className="kicker">Setup</dt>
+            <dd className="tabular-nums">{solariSandboxBootMs}ms</dd>
+          </div>
+        ) : null}
+      </dl>
       {determinismHash ? (
-        <>
-          <span className="text-neutral-500" aria-hidden="true">/</span>
-          <button
-            type="button"
-            title={`${determinismHash} — click to copy`}
-            onClick={() => copyHash(determinismHash)}
-            className="underline decoration-dotted decoration-neutral-600 underline-offset-2 hover:text-acid focus:outline-none"
-          >
-            <span className="text-neutral-500">Hash </span>
-            <span className="text-neutral-200">{truncateMiddle(determinismHash)}</span>
-            {copied ? (
-              <span className="ml-1.5 text-acid">copied</span>
-            ) : (
-              <span className="ml-1.5 text-neutral-500">⧉</span>
-            )}
-          </button>
-        </>
+        <button
+          type="button"
+          title={`${determinismHash} — click to copy`}
+          aria-label={`Copy run fingerprint ${determinismHash}`}
+          onClick={() => copyHash(determinismHash)}
+          className="inline-flex min-h-11 items-baseline gap-2 font-mono text-xs text-mut underline decoration-dotted underline-offset-4 hover:text-ink"
+        >
+          <span className="kicker">Fingerprint</span>
+          <span className="tabular-nums">{truncateMiddle(determinismHash)}</span>
+          <span aria-hidden="true" className="no-underline">{copied ? "copied" : "copy"}</span>
+        </button>
       ) : null}
-      {solariBrowserBootMs != null ? (
-        <>
-          <span className="text-neutral-500" aria-hidden="true">/</span>
-          <span>
-            <span className="text-neutral-500">Browser boot </span>
-            <span className="text-neutral-200">{solariBrowserBootMs}ms</span>
-          </span>
-        </>
-      ) : null}
-      {solariSandboxBootMs != null ? (
-        <>
-          <span className="text-neutral-500" aria-hidden="true">/</span>
-          <span>
-            <span className="text-neutral-500">Sandbox boot </span>
-            <span className="text-neutral-200">{solariSandboxBootMs}ms</span>
-          </span>
-        </>
-      ) : null}
+      <span role="status" className="sr-only">
+        {copied ? "Run fingerprint copied to clipboard" : ""}
+      </span>
     </div>
   );
 }

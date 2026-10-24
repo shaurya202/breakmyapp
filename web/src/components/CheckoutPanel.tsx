@@ -50,11 +50,15 @@ export function useCheckoutStart(auditId: Id<"audits">) {
 }
 
 const EMBED_LABELS: Record<Tier, string> = {
-  FULL_AUTOPSY: "Unlock Full Autopsy",
-  SHIELD: "Launch Shield",
+  FULL_AUTOPSY: "Unlock Full Report",
+  SHIELD: "Continuous Monitoring",
 };
 
-/** Inline dark embed — theme "dark", chartreuse accent to match the terminal. */
+/**
+ * The Whop embed is third-party infrastructure inside its own dark island —
+ * the one neutral place dark chrome is allowed besides the execution log.
+ * No forced accent color: the widget sets its own.
+ */
 export function CheckoutEmbed({
   sessionId,
   tier,
@@ -65,16 +69,18 @@ export function CheckoutEmbed({
   onComplete: () => void;
 }) {
   return (
-    <div className="rounded-lg border border-acid/40 bg-black/50 p-4">
-      <div className="mb-3 text-sm font-bold text-white">
+    <div className="border border-ink bg-ink p-4">
+      <div className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-paper/70">
         Secure checkout
       </div>
-      <WhopCheckoutEmbed
-        sessionId={sessionId}
-        theme="dark"
-        themeOptions={{ accentColor: "lime", buttonText: EMBED_LABELS[tier] }}
-        onComplete={() => onComplete()}
-      />
+      <div className="mt-3">
+        <WhopCheckoutEmbed
+          sessionId={sessionId}
+          theme="dark"
+          themeOptions={{ buttonText: EMBED_LABELS[tier] }}
+          onComplete={() => onComplete()}
+        />
+      </div>
     </div>
   );
 }
@@ -108,17 +114,22 @@ export default function CheckoutPanel({
   }
 
   return (
-    <div className="rounded-lg border border-acid/40 bg-acid/5 p-5 sm:p-6">
-      <h2 className="text-xl font-bold text-white">Go deeper on every finding</h2>
-      <p className="mt-2 max-w-xl text-sm leading-6 text-neutral-300">Unlock the full evidence and suggested fixes, or keep checking your app after future deploys.</p>
+    <div className="border-2 border-ink bg-paper p-6 sm:p-8">
+      <p className="kicker">Full report</p>
+      <h2 className="mt-2 text-section font-bold">
+        Unlock full bug details and code fixes
+      </h2>
+      <p className="mt-3 max-w-xl text-sm leading-relaxed text-mut">
+        Get step-by-step reproduction guides, screenshots, and ready-to-copy code fixes for every bug, or protect your app after future updates.
+      </p>
       {fallbackUrl ? (
         <a
           href={fallbackUrl.url}
           target="_blank"
           rel="noreferrer"
-          className="mt-4 block rounded-md bg-acid px-4 py-3 text-center text-sm font-bold text-ink hover:bg-white"
+          className="mt-5 inline-flex min-h-11 items-center bg-stamp px-5 text-sm font-bold uppercase tracking-[0.04em] text-paper hover:bg-ink"
         >
-          Continue to secure {fallbackUrl.tier === "FULL_AUTOPSY" ? "Full Autopsy" : "Launch Shield"} checkout ↗
+          Continue to secure {fallbackUrl.tier === "FULL_AUTOPSY" ? "Full Report" : "Continuous Monitoring"} checkout ↗
         </a>
       ) : null}
       <div className="mt-5 flex flex-col gap-3 sm:flex-row">
@@ -126,28 +137,26 @@ export default function CheckoutPanel({
           type="button"
           disabled={pendingTier !== null}
           onClick={() => start("FULL_AUTOPSY")}
-          className="flex-1 rounded-md bg-acid px-4 py-3 text-sm font-bold text-ink hover:bg-white disabled:opacity-50"
+          className="flex-1 border border-ink bg-ink px-4 py-3 text-sm font-bold uppercase tracking-[0.04em] text-paper transition-transform duration-150 active:translate-y-px disabled:opacity-50"
         >
           {pendingTier === "FULL_AUTOPSY"
-            ? "starting…"
-            : `Unlock Full Autopsy — $${(unlockPriceCents / 100).toFixed(2)}`}
+            ? "Starting…"
+            : `Unlock Full Report — $${(unlockPriceCents / 100).toFixed(2)}`}
         </button>
         <button
           type="button"
           disabled={pendingTier !== null}
           onClick={() => start("SHIELD")}
-          className="flex-1 rounded-md border border-acid/50 bg-acid/10 px-4 py-3 text-sm font-bold text-acid hover:bg-acid/20 disabled:opacity-50"
+          className="flex-1 border border-ink bg-paper px-4 py-3 text-sm font-bold uppercase tracking-[0.04em] transition-transform duration-150 hover:bg-sink active:translate-y-px disabled:opacity-50"
         >
-          {pendingTier === "SHIELD" ? "starting…" : "Launch Shield — $29/mo"}
+          {pendingTier === "SHIELD" ? "Starting…" : "Continuous Monitoring — $29/mo"}
         </button>
       </div>
-      <p className="mt-4 text-xs leading-5 text-neutral-500">
-        Full Autopsy: all traces, screenshots + every AI fix patch, 1
-        deterministic verification re-run (72h). Shield: re-scan after every
-        deploy + unlimited re-runs.
+      <p className="mt-4 border-t border-line pt-3 text-xs leading-relaxed text-mut">
+        Full Report ($9): Step-by-step reproduction, error logs, screenshots, ready-to-use code fixes, plus 1 free re-test after you fix bugs. Continuous Monitoring ($29/mo): Re-tests your site automatically after every update.
       </p>
       {degraded ? (
-        <div role="alert" className="mt-4 rounded border border-amber-500/50 bg-amber-500/5 px-3 py-2 text-sm text-amber-300">
+        <div role="alert" className="mt-4 border-l-2 border-stamp bg-sink px-3 py-2 text-sm">
           {degraded}
         </div>
       ) : null}
@@ -171,30 +180,30 @@ export function ShieldOnlyCta({ auditId }: { auditId: Id<"audits"> }) {
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="mt-4 flex flex-col gap-2 border-t border-pass/30 pt-4 text-left">
       {fallbackUrl ? (
         <a
           href={fallbackUrl.url}
           target="_blank"
           rel="noreferrer"
-          className="rounded-md border border-acid/60 bg-acid/15 px-4 py-2.5 text-center text-sm font-bold text-acid"
+          className="inline-flex min-h-11 items-center justify-center border border-ink bg-paper px-4 text-center font-mono text-xs font-semibold uppercase tracking-[0.08em] hover:bg-sink"
         >
-          Open Launch Shield checkout ↗
+          Open Continuous Monitoring checkout ↗
         </a>
       ) : (
         <button
           type="button"
           disabled={pendingTier !== null}
           onClick={() => start("SHIELD")}
-          className="self-start rounded-md bg-acid px-4 py-2.5 text-sm font-bold text-ink hover:bg-white disabled:opacity-50"
+          className="inline-flex min-h-11 items-center self-start border border-ink bg-ink px-4 text-sm font-bold uppercase tracking-[0.04em] text-paper hover:bg-ink-2 disabled:opacity-50"
         >
           {pendingTier === "SHIELD"
-            ? "starting shield…"
-            : "Launch Shield — $29/mo · keep it clean after every deploy"}
+            ? "Starting monitoring…"
+            : "Continuous Monitoring — $29/mo · keep your site clean after every update"}
         </button>
       )}
       {degraded ? (
-        <span role="alert" className="rounded border border-amber-500/50 bg-amber-500/5 px-3 py-2 text-sm text-amber-300">
+        <span role="alert" className="border-l-2 border-stamp bg-sink px-3 py-2 text-sm">
           {degraded}
         </span>
       ) : null}

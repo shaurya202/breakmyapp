@@ -177,6 +177,12 @@ type WhopFn = {
     { auditId: Id<"audits">; tier: "FULL_AUTOPSY" | "SHIELD" },
     WhopSessionResult
   >;
+  createShieldCheckout: FunctionReference<
+    "action",
+    "public",
+    { targetUrl: string },
+    WhopSessionResult
+  >;
 };
 
 export const api = generatedApi as unknown as {
@@ -187,3 +193,6 @@ export const api = generatedApi as unknown as {
 
 export const WHOP_CREATE_CHECKOUT_SESSION = generatedApi.whop
   .createCheckoutSession;
+
+export const WHOP_CREATE_SHIELD_CHECKOUT = generatedApi.whop
+  .createShieldCheckout;

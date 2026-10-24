@@ -152,6 +152,8 @@ export const getReport = query({
           deterministicPayload: null,
           screenshotUrl: null,
           patchReviewStatus: null,
+          teracVerdict: f.teracVerdict ?? null,
+          teracReproducedCount: f.teracReproducedCount ?? null,
         });
         continue;
       }
@@ -167,6 +169,8 @@ export const getReport = query({
         rawErrorLog: f.rawErrorLog,
         aiSuggestedPatch: f.aiSuggestedPatch,
         patchReviewStatus: f.patchReviewStatus ?? null,
+        teracVerdict: f.teracVerdict ?? null,
+        teracReproducedCount: f.teracReproducedCount ?? null,
         screenshotUrl: f.screenshotStorageId
           ? await ctx.storage.getUrl(f.screenshotStorageId)
           : null,
@@ -616,5 +620,44 @@ export const setWhopCheckout = internalMutation({
     if (Object.keys(patch).length > 0) {
       await ctx.db.patch(args.auditId, patch as any);
     }
+  },
+});
+
+export const clearAllAudits = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const audits = await ctx.db.query("audits").collect();
+    for (const a of audits) {
+      await ctx.db.delete(a._id);
+    }
+    const findings = await ctx.db.query("findings").collect();
+    for (const f of findings) {
+      if (f.screenshotStorageId) {
+        try {
+          await ctx.storage.delete(f.screenshotStorageId);
+        } catch {
+          // ignore storage delete errors
+        }
+      }
+      await ctx.db.delete(f._id);
+    }
+    const teracVerifs = await ctx.db.query("terac_verifications").collect();
+    for (const tv of teracVerifs) {
+      await ctx.db.delete(tv._id);
+    }
+    const treasury = await ctx.db.query("company_treasury").first();
+    if (treasury) {
+      await ctx.db.patch(treasury._id, {
+        totalAuditsExecuted: 0,
+        totalBugsCaught: 0,
+        totalWhopRevenueCents: 0,
+        totalWhopFeesCents: 0,
+        totalTeracLaborCents: 0,
+        totalShipReadyBadgesIssued: 0,
+        totalSolariComputeCostCents: 0,
+        netAutonomousProfitCents: 0,
+      });
+    }
+    return { clearedAudits: audits.length, clearedFindings: findings.length };
   },
 });

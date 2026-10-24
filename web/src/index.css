@@ -1,49 +1,94 @@
+@import "@fontsource-variable/archivo";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  :root {
+    color-scheme: light;
+    --duration-fast: 150ms;
+    --duration-normal: 250ms;
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  }
   html,
   body {
-    @apply bg-ink text-neutral-200 font-sans antialiased;
+    @apply bg-paper text-ink font-sans antialiased;
   }
+  html { -webkit-text-size-adjust: 100%; }
   body { min-width: 320px; }
+  h1, h2 { text-wrap: balance; }
+  p { text-wrap: pretty; }
   button, input { font: inherit; }
   button { cursor: pointer; }
   button:disabled { cursor: not-allowed; }
   a, button { -webkit-tap-highlight-color: transparent; }
+
+  /* Kicker: the recurring dry, letterspaced label that organizes sections
+     in place of neon chips and rainbow pills. */
+  .kicker {
+    @apply font-mono text-[0.6875rem] font-medium uppercase tracking-[0.16em] text-mut;
+  }
+
   ::selection {
-    @apply bg-acid text-black;
+    @apply bg-ink text-paper;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
   }
 }
 
 @layer utilities {
-  .text-neutral-500 { color: #b0bec0; }
-  .text-neutral-600, .text-neutral-700 { color: #91a4a8; }
-  :focus-visible { outline: 2px solid #d5f477 !important; outline-offset: 3px; }
-  /* Locked-card redaction look (deliverables gated server-side). */
-  .redact-blur {
-    filter: blur(6px);
-    pointer-events: none;
-    user-select: none;
+  :focus-visible { outline: 2px solid #b0342a !important; outline-offset: 3px; }
+  /* Keyboard escape hatch past the shared header. Hidden until focused. */
+  .skip-link {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
   }
-  .terminal-scroll::-webkit-scrollbar {
+  .skip-link:focus-visible {
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 0.75rem 1rem;
+    overflow: visible;
+    clip: auto;
+    z-index: 50;
+    border-radius: 4px;
+    background: #1b1812;
+    color: #f2efe7;
+    font-size: 0.875rem;
+    font-weight: 700;
+  }
+  .scroll-hair::-webkit-scrollbar {
     width: 6px;
   }
-  .terminal-scroll::-webkit-scrollbar-thumb {
-    background: #53676b;
+  .scroll-hair::-webkit-scrollbar-thumb {
+    background: #6b6354;
     border-radius: 3px;
   }
-  .terminal-scroll::-webkit-scrollbar-track {
+  .scroll-hair::-webkit-scrollbar-track {
     background: transparent;
-  }
-  .grid-bg {
-    background-image: linear-gradient(rgba(213, 244, 119, 0.06) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(213, 244, 119, 0.06) 1px, transparent 1px);
-    background-size: 28px 28px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

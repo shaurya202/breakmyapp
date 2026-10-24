@@ -23,19 +23,19 @@ function ExaSourcePanel({
   grounding: string[] | null;
 }) {
   return (
-    <div className="rounded-lg border border-line bg-panel px-5 py-4">
-      <h2 className="text-sm font-bold text-white">How this app was discovered</h2>
-      <p className="mt-2 text-sm leading-6 text-neutral-300">{summary}</p>
+    <div className="border border-line bg-paper px-5 py-4">
+      <h2 className="text-sm font-bold">How we found this website</h2>
+      <p className="mt-2 text-sm leading-6 text-mut">{summary}</p>
       {grounding && grounding.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 font-mono text-xs leading-5 text-neutral-500">
-          <span>Sources:</span>
+        <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 font-mono text-xs leading-5 text-mut">
+          <span>Found on:</span>
           {grounding.slice(0, 6).map((u, i) => (
             <span key={i} className="min-w-0">
               <a
                 href={u}
                 target="_blank"
                 rel="noreferrer"
-                className="break-all text-acid underline decoration-dotted underline-offset-2 hover:text-white"
+                className="break-all underline decoration-dotted underline-offset-2 hover:text-ink hover:decoration-solid"
               >
                 {(() => {
                   try {
@@ -51,6 +51,32 @@ function ExaSourcePanel({
       ) : null}
     </div>
   );
+}
+
+/** One Terac verdict rendered as a ruled seal-line, never a colored chip. */
+function TeracStatus({ status }: { status: string }) {
+  if (status === "CONFIRMED") {
+    return (
+      <span className="font-mono text-xs uppercase tracking-[0.1em] text-pass">
+        Verified by 3 independent testers
+      </span>
+    );
+  }
+  if (status === "DISPATCHED") {
+    return (
+      <span className="font-mono text-xs uppercase tracking-[0.1em] text-mut">
+        Human verification in progress
+      </span>
+    );
+  }
+  if (status === "CONTESTED") {
+    return (
+      <span className="font-mono text-xs uppercase tracking-[0.1em] text-stamp">
+        Flagged by testers
+      </span>
+    );
+  }
+  return null;
 }
 
 function ReportBody({ auditId, refetch }: { auditId: string; refetch: () => void }) {
@@ -80,23 +106,40 @@ function ReportBody({ auditId, refetch }: { auditId: string; refetch: () => void
   };
 
   if (report === undefined) {
+    // Skeleton mirrors the report layout, so content lands without a jump.
     return (
-      <div className="mx-auto max-w-7xl px-5 py-16 text-base text-neutral-300" role="status">
-        Opening audit report…
+      <div
+        className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8"
+        role="status"
+        aria-busy="true"
+      >
+        <span className="sr-only">Loading test report…</span>
+        <div aria-hidden="true" className="animate-pulse space-y-4">
+          <div className="h-4 w-24 bg-sink" />
+          <div className="h-8 w-2/3 max-w-md bg-sink" />
+          <div className="h-4 w-1/2 max-w-sm bg-sink" />
+          <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(280px,0.42fr)_minmax(0,0.58fr)]">
+            <div className="h-72 bg-sink" />
+            <div className="space-y-4">
+              <div className="h-24 bg-sink" />
+              <div className="h-40 bg-sink" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
   if (report === null) {
     return (
-      <div className="mx-auto max-w-7xl px-5 py-16">
-        <h1 className="text-2xl font-bold text-white">Audit not found</h1>
-        <p className="mt-2 text-sm text-neutral-400">This report link may be invalid or no longer available.</p>
+      <div className="mx-auto max-w-6xl px-5 py-16">
+        <h1 className="text-2xl font-bold">Report not found</h1>
+        <p className="mt-2 text-sm text-mut">This report link might be incorrect or expired.</p>
         <button
           type="button"
           onClick={() => navigate("/")}
-          className="mt-3 rounded border border-line px-3 py-1.5 text-neutral-300 hover:border-acid/50 hover:text-acid"
+          className="mt-3 inline-flex min-h-11 items-center border border-ink bg-paper px-4 font-mono text-xs font-semibold uppercase tracking-[0.08em] hover:bg-sink"
         >
-          Return to home
+          Back to home
         </button>
       </div>
     );
@@ -106,34 +149,62 @@ function ReportBody({ auditId, refetch }: { auditId: string; refetch: () => void
   const findings: Finding[] = report.findings;
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-5 py-7 sm:px-8 sm:py-10">
-      <div className="mb-5"><button type="button" onClick={() => navigate("/")} className="text-sm text-neutral-500 hover:text-acid">← All audits</button></div>
-      <div className="flex flex-wrap items-end justify-between gap-6 border-b border-line pb-8">
+    <div className="mx-auto w-full max-w-6xl px-5 py-7 sm:px-8 sm:py-10">
+      <div className="mb-5">
+        <button
+          type="button"
+          onClick={() => navigate("/")}
+          className="-ml-2 inline-flex min-h-11 items-center gap-1 px-2 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-mut hover:text-ink"
+        >
+          ← Back to home
+        </button>
+      </div>
+
+      {/* Dossier header: title + ruled tabular verdicts, no stat cards */}
+      <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-6 border-b-2 border-ink pb-7">
         <div className="min-w-0 flex-1">
-          <div className="mb-3 font-mono text-xs text-acid">Audit report</div>
-          <h1 className="break-words text-3xl font-black tracking-[-0.045em] text-white sm:text-5xl">
+          <p className="kicker">Website test report</p>
+          <h1 className="mt-2 break-words text-title font-extrabold">
             {a.projectName}
           </h1>
           <a
             href={a.targetUrl}
             target="_blank"
             rel="noreferrer"
-            className="mt-2 block max-w-2xl truncate font-mono text-sm text-neutral-400 underline decoration-dotted underline-offset-2 hover:text-acid"
+            className="mt-2 block max-w-2xl truncate font-mono text-sm text-mut hover:text-ink hover:underline"
           >
             {a.targetUrl}
           </a>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div className="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-2">
             <StatusPill status={a.status as AuditStatus} size="md" />
-            <span className="text-xs text-neutral-500">
+            <span className="font-mono text-xs text-mut">
               {a.source === "EXA_AUTONOMOUS_HUNT"
-                ? "Discovered by Exa"
-                : "Submitted audit"}</span>
+                ? "Found online"
+                : "Tested by visitor"}
+            </span>
+            <TeracStatus status={a.teracPanelStatus ?? ""} />
           </div>
         </div>
-        <div className="flex items-end gap-6 rounded-lg border border-line bg-panel px-5 py-4">
-          <div><span className="block text-xs text-neutral-500">Health score</span><strong className={`text-4xl font-black tabular-nums ${a.healthScore >= 90 ? "text-acid" : a.healthScore >= 70 ? "text-amber-300" : "text-red-300"}`}>{a.healthScore}<span className="text-base font-normal text-neutral-500">/100</span></strong></div>
-          <div className="border-l border-line pl-6"><span className="block text-xs text-neutral-500">Findings</span><strong className="text-4xl font-black tabular-nums text-white">{a.totalBugsFound}</strong><span className="ml-2 text-xs text-red-300">{a.criticalCount} critical</span></div>
-        </div>
+        <dl className="flex gap-8 font-mono">
+          <div>
+            <dt className="kicker">Health score</dt>
+            <dd className="mt-1">
+              <span className="text-3xl font-semibold tabular-nums">
+                {a.runCompleted ? a.healthScore : "—"}
+              </span>
+              {a.runCompleted ? <span className="text-sm text-mut">/100</span> : null}
+            </dd>
+          </div>
+          <div className="border-l border-line pl-8">
+            <dt className="kicker">Findings</dt>
+            <dd className="mt-1">
+              <span className="text-3xl font-semibold tabular-nums">{a.totalBugsFound}</span>
+              {a.criticalCount > 0 ? (
+                <span className="ml-2 text-xs font-semibold text-stamp">{a.criticalCount} critical</span>
+              ) : null}
+            </dd>
+          </div>
+        </dl>
       </div>
 
       {/* Run manifest — anti-fraud seal, printed once the run has finished */}
@@ -155,61 +226,58 @@ function ReportBody({ auditId, refetch }: { auditId: string; refetch: () => void
         </div>
       ) : null}
 
-      <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(280px,0.42fr)_minmax(0,0.58fr)]">
+      <div className="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(280px,0.42fr)_minmax(0,0.58fr)]">
         <div className="min-w-0 lg:sticky lg:top-5 lg:h-[min(68vh,640px)]">
           <TerminalFeed lines={a.liveStepLog} status={a.status} />
         </div>
 
         <div className="min-w-0">
-          {!a.runCompleted ? (
-            <div className="rounded-lg border border-line bg-panel px-6 py-12 text-center">
-              <span className="text-acid">●</span> <strong className="text-white">Audit in progress</strong>
-              <p className="mt-2 text-sm leading-6 text-neutral-500">Findings will appear here when the run finishes. You can follow each step in the live log.</p>
+          {!a.runCompleted && a.status !== "FAILED" ? (
+            <div role="status" className="border-y border-line py-12 text-center">
+              <strong>Testing your website right now</strong>
+              <p className="mt-2 text-sm leading-6 text-mut">
+                We are clicking buttons, testing forms, and checking mobile layouts. Results will appear here in about 15 seconds.
+              </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-6">
               {a.shipReadyBadgeIssued ? (
                 <ShipReadyBadge runSeed={a.runSeed} determinismHash={a.determinismHash} />
               ) : null}
 
               {a.status === "FAILED" ? (
-                <div className="rounded border border-red-500/40 bg-red-500/5 p-3">
-                  <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-red-400">
-                    run failed
-                  </div>
-                  <p className="mt-1 break-all font-mono text-[11px] text-red-300">
-                    {a.errorMessage ?? "Unknown failure — see terminal log."}
+                <div className="border-l-2 border-stamp bg-sink p-5">
+                  <h2 className="text-lg font-bold text-stamp">Test could not finish</h2>
+                  <p className="mt-2 break-words font-mono text-xs leading-5">
+                    {a.errorMessage ?? "Something went wrong during the test. Check the execution log for details."}
                   </p>
                   <button
                     type="button"
                     onClick={relaunch}
                     disabled={starting}
-                    className="mt-2 rounded bg-red-500 px-3 py-1.5 text-xs font-bold text-black hover:bg-red-400 focus:outline-none disabled:opacity-50"
+                    className="mt-4 inline-flex min-h-11 items-center border border-ink bg-ink px-4 text-sm font-bold uppercase tracking-[0.04em] text-paper hover:bg-ink-2 disabled:opacity-50"
                   >
-                    {starting ? "re-launching…" : "Re-run it"}
+                    {starting ? "Retrying…" : "Try testing again"}
                   </button>
                   {startError ? (
-                    <p className="mt-1 font-mono text-[11px] text-red-400">⚠ {startError}</p>
+                    <p role="alert" className="mt-2 text-sm text-stamp">{startError}</p>
                   ) : null}
                 </div>
               ) : null}
 
               {/* Clean report state — honest funnel (PRD FR-5/pricing rule) */}
               {a.status === "COMPLETED" && a.totalBugsFound === 0 ? (
-                <div className="rounded border border-emerald-400/50 bg-emerald-400/10 p-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-emerald-300">✓</span>
-                    <span className="text-sm font-bold text-emerald-300">
-                      No findings in this run
+                <div className="border-l-2 border-pass bg-sink p-5">
+                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-pass">
+                      Zero findings
                     </span>
+                    <span className="text-lg font-bold">Your site passed clean.</span>
                   </div>
-                  <p className="mt-1 font-mono text-[11px] leading-4 text-emerald-100/70">
-                    Nothing to autopsy — we don't sell empty reports. Keep it that
-                    way after the demo reboot.
+                  <p className="mt-2 text-sm leading-6 text-mut">
+                    We tested for crashes, broken buttons, and mobile screen issues and found zero problems. Keep your site safe as you make updates with continuous monitoring.
                   </p>
-                  <div className="mt-2">
-                    <ShieldOnlyCta auditId={a.id} />
-                  </div>
+                  <ShieldOnlyCta auditId={a.id} />
                 </div>
               ) : null}
 
@@ -261,9 +329,9 @@ export default function ReportPage({ auditId }: { auditId: string }) {
     document.title = "BreakMyApp — audit report";
   }, []);
   return (
-    <div className="flex min-h-screen flex-col bg-ink">
+    <div className="flex min-h-screen flex-col bg-paper">
       <TreasuryHeader />
-      <main key={reloadKey}>
+      <main key={reloadKey} id="main-content">
         <ReportBody auditId={auditId} refetch={() => setReloadKey((k) => k + 1)} />
       </main>
     </div>

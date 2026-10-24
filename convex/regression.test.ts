@@ -123,3 +123,96 @@ describe("HTTP and signed payment fulfillment", () => {
     expect((await t.fetch("/whop/webhook", { method: "POST", headers, body: body + " " })).status).toBe(401);
   });
 });
+
+describe("Terac verified human verification (FR-6)", () => {
+  it("records dispatched panels, enforces status flow, and updates treasury with human labor", async () => {
+    const t = setup();
+    const id = await create(t);
+    await complete(t, id, [finding]);
+
+    const reportBefore = await t.query(api.audits.getReport, { auditId: id });
+    const findingId = reportBefore!.findings[0]._id as Id<"findings">;
+
+    // Dispatch panel
+    await t.mutation(internal.teracBridge.recordDispatchedPanels, {
+      auditId: id,
+      projectId: "proj_breakmyapp_verification",
+      dispatched: [
+        {
+          findingId,
+          opportunityId: "opp_repro_1",
+          taskKind: "FINDING_REPRO",
+          panelSize: 3,
+          laborCostCents: 120,
+        },
+      ],
+    });
+
+    const reportDispatched = await t.query(api.audits.getReport, { auditId: id });
+    expect(reportDispatched!.audit.teracPanelStatus).toBe("DISPATCHED");
+    expect(reportDispatched!.findings[0].teracVerdict).toBe("PENDING");
+
+    // Pending verifications
+    const pendings = await t.query(internal.teracBridge.getPendingVerifications, {});
+    expect(pendings).toHaveLength(1);
+    expect(pendings[0].opportunityId).toBe("opp_repro_1");
+
+    // Complete verification with 3/3 reproductions (CONFIRMED)
+    await t.mutation(internal.teracBridge.applyVerificationResult, {
+      verificationId: pendings[0]._id,
+      status: "CONFIRMED",
+      reproducedCount: 3,
+      laborCostCents: 120,
+      humanNotes: ["Reproduced on mobile", "Reproduced on desktop", "Confirmed"],
+    });
+
+    const reportConfirmed = await t.query(api.audits.getReport, { auditId: id });
+    expect(reportConfirmed!.audit.teracPanelStatus).toBe("CONFIRMED");
+    expect(reportConfirmed!.findings[0].teracVerdict).toBe("TERAC_VERIFIED");
+    expect(reportConfirmed!.findings[0].teracReproducedCount).toBe(3);
+
+    // Treasury booked labor cost
+    const treasury = await t.query(api.treasury.get, {});
+    expect(treasury.totalTeracLaborCents).toBe(120);
+    expect(treasury.netAutonomousProfitCents).toBe(-120);
+  });
+
+  it("marks finding and audit as CONTESTED when reproduction fails (<2/3)", async () => {
+    const t = setup();
+    const id = await create(t);
+    await complete(t, id, [finding]);
+
+    const reportBefore = await t.query(api.audits.getReport, { auditId: id });
+    const findingId = reportBefore!.findings[0]._id as Id<"findings">;
+
+    await t.mutation(internal.teracBridge.recordDispatchedPanels, {
+      auditId: id,
+      projectId: "proj_breakmyapp_verification",
+      dispatched: [
+        {
+          findingId,
+          opportunityId: "opp_repro_contested",
+          taskKind: "FINDING_REPRO",
+          panelSize: 3,
+          laborCostCents: 120,
+        },
+      ],
+    });
+
+    const pendings = await t.query(internal.teracBridge.getPendingVerifications, {});
+    const target = pendings.find((p) => p.opportunityId === "opp_repro_contested")!;
+
+    await t.mutation(internal.teracBridge.applyVerificationResult, {
+      verificationId: target._id,
+      status: "CONTESTED",
+      reproducedCount: 1,
+      laborCostCents: 120,
+      humanNotes: ["Could not reproduce"],
+    });
+
+    const reportContested = await t.query(api.audits.getReport, { auditId: id });
+    expect(reportContested!.audit.teracPanelStatus).toBe("CONTESTED");
+    expect(reportContested!.findings[0].teracVerdict).toBe("TERAC_CONTESTED");
+    expect(reportContested!.findings[0].teracReproducedCount).toBe(1);
+  });
+});

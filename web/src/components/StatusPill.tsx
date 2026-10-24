@@ -1,6 +1,7 @@
 /**
- * Colored status chip. QUEUED amber / running chartreuse pulse /
- * completed green / failed red, per the PRD aesthetic.
+ * Status tags. Each maps to exactly one defined engine state and is
+ * communicated in text — no dot decoys (tell #7). Ink/common states are
+ * typographic; only live runs pulse, and only once per page.
  */
 
 export type AuditStatus =
@@ -11,28 +12,21 @@ export type AuditStatus =
   | "COMPLETED"
   | "FAILED";
 
-const META: Record<AuditStatus, { label: string; cls: string }> = {
-  QUEUED: { label: "queued", cls: "bg-amber-500/15 text-amber-400 border-amber-500/40" },
-  EXA_ENRICHING: {
-    label: "exa enriching",
-    cls: "bg-amber-500/15 text-amber-400 border-amber-500/40",
-  },
+const META: Record<AuditStatus, { label: string; live: boolean; cls: string }> = {
+  QUEUED: { label: "Queued", live: false, cls: "text-mut" },
+  EXA_ENRICHING: { label: "Checking details", live: false, cls: "text-mut" },
   DETERMINISTIC_RUN_RUNNING: {
-    label: "deterministic run",
-    cls: "bg-acid/15 text-acid border-acid/40 animate-terminal-pulse",
+    label: "Testing website",
+    live: true,
+    cls: "text-ink",
   },
   SANDBOX_ANALYZING: {
-    label: "sandbox analyzing",
-    cls: "bg-acid/15 text-acid border-acid/40 animate-terminal-pulse",
+    label: "Analyzing results",
+    live: true,
+    cls: "text-ink",
   },
-  COMPLETED: {
-    label: "completed",
-    cls: "bg-emerald-400/15 text-emerald-300 border-emerald-400/40",
-  },
-  FAILED: {
-    label: "failed",
-    cls: "bg-red-500/15 text-red-400 border-red-500/40",
-  },
+  COMPLETED: { label: "Completed", live: false, cls: "text-pass" },
+  FAILED: { label: "Failed", live: false, cls: "text-stamp" },
 };
 
 export default function StatusPill({
@@ -44,16 +38,20 @@ export default function StatusPill({
 }) {
   const meta = META[status] ?? {
     label: status.toLowerCase().replace(/_/g, " "),
-    cls: "bg-neutral-700/30 text-neutral-400 border-neutral-600/40",
+    live: false,
+    cls: "text-mut",
   };
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded border font-mono tracking-tight ${meta.cls} ${
-        size === "sm" ? "px-2 py-1 text-xs" : "px-2.5 py-1 text-xs"
+      className={`inline-flex items-center gap-1.5 border-y border-ink/25 py-0.5 font-mono text-xs font-semibold uppercase tracking-[0.1em] ${meta.cls} ${
+        size === "sm" ? "px-0.5" : "px-1"
       }`}
     >
-      {status === "DETERMINISTIC_RUN_RUNNING" || status === "SANDBOX_ANALYZING" ? (
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-current animate-terminal-pulse" />
+      {meta.live ? (
+        <span
+          aria-hidden="true"
+          className="inline-block h-1.5 w-1.5 animate-pulse-live rounded-full bg-ink"
+        />
       ) : null}
       {meta.label}
     </span>

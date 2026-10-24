@@ -49,38 +49,40 @@ export default function RerunPanel({
   };
 
   const remainingText = PAYWALLS_DISABLED || payerHasShield
-    ? "unlimited fix-verification re-runs"
-    : `${Math.max(verificationRunsRemaining, 0)} fix-verification re-run${
+    ? "unlimited re-tests included with your plan"
+    : `${Math.max(verificationRunsRemaining, 0)} re-test${
         verificationRunsRemaining === 1 ? "" : "s"
-      } left (72h window${deadlineText ? ` — until ${deadlineText}` : ""})`;
+      } left to verify fixes (valid for 72h${deadlineText ? ` — until ${deadlineText}` : ""})`;
 
   return (
-    <div className="rounded border border-acid/30 bg-acid/5 px-3 py-2 font-mono text-xs">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <span className="text-neutral-400">{remainingText}</span>
+    <div className="border-y border-ink/20 py-2.5">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span className="font-mono text-xs text-mut">{remainingText}</span>
         {phase === "idle" && (PAYWALLS_DISABLED || payerHasShield || verificationRunsRemaining > 0) && (!rerunDeadline || Date.now() <= rerunDeadline) ? (
           <button
             type="button"
             onClick={onClick}
-            className="rounded border border-acid/50 bg-acid/10 px-2.5 py-1 text-[11px] font-bold text-acid hover:bg-acid/20 focus:outline-none"
+            className="inline-flex min-h-11 items-center border border-ink bg-paper px-3.5 font-mono text-xs font-semibold uppercase tracking-[0.08em] hover:bg-sink"
           >
-            Verify my fix — re-run the same seed
+            Verify my fixes — test again
           </button>
         ) : null}
         {phase === "running" ? (
-          <span className="flex items-center gap-2 text-[11px] text-acid">
-            <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-acid/30 border-t-acid" />
-            same seed, same suite — count the errors again
+          <span role="status" className="flex items-center gap-2 font-mono text-xs">
+            <span aria-hidden="true" className="inline-block h-3 w-3 animate-spin rounded-full border border-line-strong border-t-ink" />
+            re-running the exact same test to check if bugs are fixed…
           </span>
         ) : null}
         {phase === "sent" ? (
-          <span className="text-[11px] text-emerald-300">
-            Re-run queued — the terminal will show progress.
+          <span role="status" className="font-mono text-xs text-pass">
+            Re-test started — watch the execution log.
           </span>
         ) : null}
       </div>
       {error ? (
-        <div className="mt-2 text-[11px] text-red-400">⚠ {error}</div>
+        <div role="alert" className="mt-2 font-mono text-xs text-stamp">
+          {error}
+        </div>
       ) : null}
     </div>
   );

@@ -3,7 +3,8 @@ import { hexSeed } from "../lib/format";
 /**
  * Ship-Ready badge — only flips true in Convex after an actual passing
  * zero-critical deterministic re-run (FR-5). Impossible to forge; the badge
- * links to the run's manifest (seed + hash).
+ * links to the run's manifest (seed + hash). Rendered as an official stamp:
+ * double rule, spaced caps, one reserved pass-green word.
  */
 export default function ShipReadyBadge({
   runSeed,
@@ -13,20 +14,21 @@ export default function ShipReadyBadge({
   determinismHash: string | null;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded border border-emerald-400/50 bg-emerald-400/10 px-3 py-2">
-      <span className="text-emerald-300">&#10003;</span>
-      <span className="font-mono text-xs font-bold tracking-[0.18em] text-emerald-300">
-        SHIP-READY
-      </span>
-      <span className="font-mono text-[10px] text-emerald-200/70">
-        — verified by deterministic re-run
-      </span>
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-2 border-ink px-5 py-3.5">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <span className="border border-ink px-2.5 py-1 font-mono text-xs font-semibold uppercase tracking-[0.2em]">
+          Ship-ready
+        </span>
+        <span className="text-sm text-mut">
+          Zero critical bugs — passed re-run on record
+        </span>
+      </div>
       <a
         href="#run-manifest"
-        className="ml-auto font-mono text-[10px] text-emerald-200/80 underline decoration-dotted underline-offset-2 hover:text-emerald-200"
+        className="font-mono text-xs text-pass underline decoration-dotted underline-offset-4 hover:decoration-solid"
       >
-        manifest: seed {hexSeed(runSeed)}
-        {determinismHash ? ` · hash ${determinismHash.slice(0, 8)}…` : ""}
+        Proof: ID {hexSeed(runSeed)}
+        {determinismHash ? ` · ${determinismHash.slice(0, 8)}` : ""}
       </a>
     </div>
   );

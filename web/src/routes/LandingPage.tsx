@@ -1,16 +1,23 @@
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
-import { api } from "../convexApi";
+import { useAction, useMutation } from "convex/react";
+import { api, WHOP_CREATE_SHIELD_CHECKOUT } from "../convexApi";
 import { navigate } from "../router";
 import TreasuryHeader from "../components/TreasuryHeader";
-import StatusPill, { type AuditStatus } from "../components/StatusPill";
-import { hostOf, timeAgo } from "../lib/format";
-import { normalizeUrl, isPublicWebUrl, SUITE_VERSION } from "../../../convex/deterministic";
+import { normalizeUrl, isPublicWebUrl } from "../../../convex/deterministic";
 
 const PIPELINE = [
-  { step: "01", name: "Submit a URL", desc: "No account or payment needed." },
-  { step: "02", name: "Watch the run", desc: "A fixed suite tests desktop and mobile." },
-  { step: "03", name: "Inspect the proof", desc: "See findings, seed, and run hash." },
+  { step: "01", name: "File the target", desc: "Paste any public web address. No account needed — the run starts immediately." },
+  { step: "02", name: "Watch execution", desc: "A real browser session clicks, submits, and resizes your app while the log ticks." },
+  { step: "03", name: "Read the findings", desc: "Every bug ships with severity, reproduction steps, a screenshot, and a code fix." },
+  { step: "04", name: "Pay only for depth", desc: "Titles and the first bug are free. The full report costs $9. A passing re-run earns the seal." },
+];
+
+const COVERAGE = [
+  { name: "Console crashes", desc: "Uncaught errors and render failures, captured with the raw stack trace." },
+  { name: "Server 500s", desc: "Routes and requests returning broken responses during the session." },
+  { name: "Mobile overflow", desc: "Layout cutoffs at 390×844 — elements escaping the viewport." },
+  { name: "Dead controls", desc: "Buttons and links that fire handlers but change nothing." },
+  { name: "Exposed keys", desc: "Leaked secrets and missing security headers on the public surface." },
 ];
 
 const BLOCKED_HOST_PATTERNS = [
@@ -75,13 +82,185 @@ function friendlyError(err: unknown): string {
   return "Could not start the run — check the URL.";
 }
 
+/** Sample findings ledger — the artifact, not a fake browser window. */
+function SampleLedger() {
+  return (
+    <aside className="border border-ink bg-paper" aria-label="Sample test inspection">
+      <div className="flex items-baseline justify-between border-b border-ink px-4 py-2.5">
+        <span className="kicker">Excerpt · audit 9F3A-C21B</span>
+        <span className="font-mono text-xs text-mut">site:your-app.com</span>
+      </div>
+      <table className="w-full text-sm">
+        <tbody>
+          {[
+            ["Mobile layout, 390×844", "no cutoffs"],
+            ["Buttons & links", "14 exercised"],
+            ["Checkout button", "hydration error"],
+          ].map(([item, result], i) => {
+            const failed = i === 2;
+            return (
+              <tr key={item} className="border-b border-line last:border-b-0">
+                <td className="px-4 py-2.5">{item}</td>
+                <td className={"px-4 py-2.5 text-right font-mono text-xs " + (failed ? "font-semibold text-stamp" : "text-mut")}>
+                  {result}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div className="border-t border-ink px-4 py-3">
+        <span className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-stamp">
+          1 finding — critical
+        </span>
+        <pre className="mt-2 whitespace-pre-wrap bg-ink px-3.5 py-2.5 font-mono text-xs leading-relaxed text-phosphor">
+          {`// Suggested fix in checkout.tsx
+- onClick={handleClick()}
++ onClick={() => handleClick()}`}
+        </pre>
+      </div>
+    </aside>
+  );
+}
+
+/**
+ * Launch Shield checkout with no audit row: takes the URL to protect, gets a
+ * Whop-hosted purchase link (metadata carries targetUrl for the webhook), and
+ * sends the browser to it. Payments happen on Whop — never in-app card forms.
+ */
+function ShieldCheckoutCard() {
+  const [url, setUrl] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [purchaseUrl, setPurchaseUrl] = useState<string | null>(null);
+  const createShieldCheckout = useAction(WHOP_CREATE_SHIELD_CHECKOUT);
+
+  const start = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pending) return;
+    setError(null);
+
+    const trimmed = url.trim();
+    const validationError = validateTargetUrl(trimmed);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setPending(true);
+    try {
+      const res = await createShieldCheckout({ targetUrl: normalizeUrl(trimmed) });
+      if (res?.configured && res.purchaseUrl) {
+        setPurchaseUrl(res.purchaseUrl);
+        // The Whop link *is* the payment surface.
+        window.location.assign(res.purchaseUrl);
+        return;
+      }
+      setError(res?.message ?? "Checkout unavailable — Whop not linked in this environment.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <div className="border-t-2 border-ink pt-3">
+      <div className="flex items-baseline justify-between gap-4">
+        <h2 className="text-base font-bold">Launch Shield</h2>
+        <span className="font-mono text-sm font-semibold tabular-nums">$29<span className="ml-1 text-xs font-normal text-mut">/mo</span></span>
+      </div>
+      <p className="mt-2 text-sm leading-relaxed text-mut">
+        Continuous monitoring for your live site: automatic hourly re-scans, unlock included on every re-run, instant alerts when a new bug appears after a deploy.
+      </p>
+      <form onSubmit={start} aria-busy={pending} className="mt-4">
+        <label htmlFor="shield-url" className="mb-2 block font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mut">
+          Site to protect
+        </label>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            id="shield-url"
+            type="text"
+            inputMode="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://your-website.com"
+            autoComplete="url"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? "shield-url-error" : "shield-url-hint"}
+            className="min-w-0 flex-1 border border-ink bg-paper px-4 py-3 font-mono text-sm text-ink placeholder:text-mut/70 focus:bg-sink focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={pending}
+            className="shrink-0 border border-ink bg-ink px-6 py-3 font-mono text-sm font-semibold uppercase tracking-[0.06em] text-paper transition-transform duration-150 hover:bg-ink-2 active:translate-y-px disabled:opacity-60"
+          >
+            {pending ? "Opening Whop…" : "Protect — via Whop ↗"}
+          </button>
+        </div>
+        {error ? (
+          <p id="shield-url-error" role="alert" className="mt-2 text-sm text-stamp">{error}</p>
+        ) : (
+          <p id="shield-url-hint" className="mt-2 font-mono text-xs text-mut">Payment happens on Whop's secure checkout. Cancel anytime.</p>
+        )}
+      </form>
+      {purchaseUrl ? (
+        <a href={purchaseUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center border border-ink bg-paper px-4 font-mono text-xs font-semibold uppercase tracking-[0.08em] hover:bg-sink">
+          Not redirected? Open the Whop checkout ↗
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Visible place to pay (FR-4): the free funnel stays account-less, and the
+ * two paid surfaces are laid out here — Full Autopsy unlock on the report
+ * page, Launch Shield straight from the landing page, both via Whop links.
+ */
+function PricingSection() {
+  return (
+    <section aria-label="Pricing" className="border-b border-line py-10 md:py-14">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="kicker">Pricing · payments via Whop checkout</p>
+        <p className="font-mono text-xs text-mut">Free audit first. Pay only for depth.</p>
+      </div>
+      <div className="mt-6 grid gap-x-10 gap-y-10 md:grid-cols-2">
+        <div className="border-t-2 border-ink pt-3">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="text-base font-bold">Full Autopsy</h2>
+            <span className="font-mono text-sm font-semibold tabular-nums">$9<span className="ml-1 text-xs font-normal text-mut">one-time</span></span>
+          </div>
+          <ul className="mt-3 space-y-1.5 text-sm leading-relaxed text-mut">
+            <li>· Step-by-step reproduction for every finding</li>
+            <li>· Raw error logs, screenshots, and payloads</li>
+            <li>· Ready-to-copy suggested code fixes</li>
+            <li>· 1 fix-verification re-run within 72 h</li>
+          </ul>
+          <button
+            type="button"
+            onClick={() => document.getElementById("audit-url")?.focus()}
+            className="mt-4 inline-flex min-h-11 items-center border border-ink bg-paper px-4 text-sm font-bold uppercase tracking-[0.04em] hover:bg-sink active:translate-y-px"
+          >
+            Unlock after your run — on the report page
+          </button>
+          <p className="mt-2 font-mono text-xs text-mut">Whop checkout opens on the report page, right next to your findings.</p>
+        </div>
+        <ShieldCheckoutCard />
+      </div>
+    </section>
+  );
+}
+
 export default function LandingPage() {
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   const startFromUrl = useMutation(api.audits.startFromUrl);
-  const recent = useQuery(api.audits.listRecent, { limit: 12 });
 
   const launch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,129 +285,101 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-ink">
+    <div className="flex min-h-screen flex-col bg-paper">
       <TreasuryHeader />
 
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-5 sm:px-8">
-        <section className="grid gap-8 border-b border-line py-14 md:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)] md:items-center md:gap-12 md:py-24">
+      <main id="main-content" className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-5 sm:px-8">
+        {/* Hero: typed like a filing header, not a glow reel */}
+        <section className="grid gap-10 border-b border-line py-12 md:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] md:items-center md:gap-14 md:py-20">
           <div>
-            <div className="mb-7 flex items-center gap-2 font-mono text-xs font-semibold text-acid"><span className="h-2 w-2 rounded-full bg-acid" /> Free deterministic app audits</div>
-            <h1 className="max-w-3xl text-[clamp(3.4rem,7vw,6.5rem)] font-black leading-[0.96] tracking-[-0.075em] text-white">
+            <p className="kicker">Independent QA bureau · deterministic runs</p>
+            <h1 className="mt-4 max-w-2xl text-display font-extrabold">
               Break it now.<br />Ship it sure.
             </h1>
-            <p className="mt-6 max-w-xl text-base leading-7 text-neutral-300 sm:text-lg">
-              Put your live app through a repeatable browser test. We show you what broke, how to reproduce it, and the exact run that found it.
+            <p className="mt-5 max-w-xl text-base leading-relaxed text-mut sm:text-lg">
+              We crash-test your website before your customers do — same seed, same suite, every run — then hand you the findings with exact fixes.
             </p>
-            <form onSubmit={launch} className="mt-9 max-w-2xl">
-              <label htmlFor="audit-url" className="mb-2 block text-sm font-bold text-white">Your app URL</label>
-              <div className="flex flex-col gap-2 sm:flex-row">
+            <form onSubmit={launch} aria-busy={pending} className="mt-8 max-w-xl">
+              <label htmlFor="audit-url" className="mb-2 block font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mut">
+                Your app URL
+              </label>
+              <div className="flex flex-col gap-2.5 sm:flex-row">
                 <input
                   id="audit-url"
                   type="text"
                   inputMode="url"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://your-app.com"
+                  placeholder="https://your-website.com"
+                  autoComplete="url"
+                  autoCapitalize="none"
+                  autoCorrect="off"
                   spellCheck={false}
                   aria-invalid={Boolean(error)}
                   aria-describedby={error ? "audit-url-error" : "audit-url-hint"}
-                  className="min-w-0 flex-1 rounded-md border border-[#587077] bg-[#0a1216] px-4 py-3.5 font-mono text-sm text-white placeholder:text-[#9eb1b5] focus:border-acid focus:outline-none"
+                  className="min-w-0 flex-1 border border-ink bg-paper px-4 py-3 font-mono text-sm text-ink placeholder:text-mut/70 focus:bg-sink focus:outline-none"
                 />
                 <button
                   type="submit"
                   disabled={pending}
-                  className="shrink-0 rounded-md bg-acid px-6 py-3.5 text-sm font-bold text-ink hover:bg-white disabled:opacity-60"
+                  className="shrink-0 border border-ink bg-ink px-6 py-3 font-mono text-sm font-semibold uppercase tracking-[0.06em] text-paper transition-transform duration-150 hover:bg-ink-2 active:translate-y-px disabled:opacity-60"
                 >
-                  {pending ? "Starting audit…" : "Run free audit"}
+                  {pending ? "Filing run…" : "Run free audit"}
                 </button>
               </div>
-              {error ? <p id="audit-url-error" role="alert" className="mt-2 text-sm text-red-300">{error}</p> : <p id="audit-url-hint" className="mt-2 text-xs text-neutral-500">No sign-up. No payment. Your report opens when the run starts.</p>}
+              {error ? (
+                <p id="audit-url-error" role="alert" className="mt-2 text-sm text-stamp">{error}</p>
+              ) : (
+                <p id="audit-url-hint" className="mt-2 font-mono text-xs text-mut">Free test. No account required. Results in seconds.</p>
+              )}
             </form>
           </div>
-          <div className="grid-bg relative overflow-hidden rounded-xl border border-line bg-panel p-4 shadow-[0_30px_90px_rgba(0,0,0,0.28)] sm:p-6" aria-label="What the audit checks">
-            <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-acid/10 blur-3xl" />
-            <div className="relative rounded-lg border border-line bg-[#0a1216] p-5">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-4 font-mono text-xs"><span className="text-white">Run protocol</span><span className="text-acid">{SUITE_VERSION}</span></div>
-              <div className="space-y-5 py-6">
-                <div className="flex gap-4"><span className="font-mono text-acid">01</span><div><strong className="text-sm text-white">Two viewports</strong><p className="mt-1 text-sm text-neutral-500">Desktop 1440 × 900 and mobile 390 × 844</p></div></div>
-                <div className="flex gap-4"><span className="font-mono text-acid">02</span><div><strong className="text-sm text-white">Seeded interactions</strong><p className="mt-1 text-sm text-neutral-500">Same URL, same input sequence on every run</p></div></div>
-                <div className="flex gap-4"><span className="font-mono text-acid">03</span><div><strong className="text-sm text-white">Verifiable evidence</strong><p className="mt-1 text-sm text-neutral-500">Findings arrive with a seed and run hash</p></div></div>
+
+          <SampleLedger />
+        </section>
+
+        {/* Method: numbered ledger, no icons, no cards */}
+        <section aria-label="How it works" className="border-b border-line py-10 md:py-14">
+          <p className="kicker">Method</p>
+          <div className="mt-6 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
+            {PIPELINE.map((p) => (
+              <div key={p.step} className="border-t-2 border-ink pt-3">
+                <span className="font-mono text-xs font-semibold text-stamp">{p.step}</span>
+                <h2 className="mt-1 text-base font-bold">{p.name}</h2>
+                <p className="mt-1.5 text-sm leading-relaxed text-mut">{p.desc}</p>
               </div>
-              <div className="border-t border-line pt-4 font-mono text-[11px] leading-5 text-neutral-500">The free report includes every finding title and one complete proof.</div>
-            </div>
+            ))}
           </div>
         </section>
 
-        <section aria-label="How it works" className="grid gap-4 border-b border-line py-8 sm:grid-cols-3">
-          {PIPELINE.map((p) => <div key={p.step} className="flex gap-4"><span className="font-mono text-sm text-acid">{p.step}</span><div><h2 className="font-bold text-white">{p.name}</h2><p className="mt-1 text-sm text-neutral-500">{p.desc}</p></div></div>)}
-        </section>
-
-        {/* Recent runs */}
-        <section className="mt-12 flex-1 pb-16">
-          <div className="mb-5 flex flex-wrap items-end justify-between gap-2">
-            <div><h2 className="text-2xl font-bold tracking-tight text-white">Recent audits</h2><p className="mt-1 text-sm text-neutral-500">Live runs from discovered launches and submitted URLs.</p></div>
+        {/* Coverage: printed form rows instead of feature cards */}
+        <section aria-label="What gets tested" className="border-b border-line py-10 md:py-14">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="kicker">Coverage · suite deterministic-suite@1.1</p>
+            <p className="font-mono text-xs text-mut">Desktop + mobile, every run, on the record</p>
           </div>
-          <div className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-panel">
-            {!recent ? (
-              <div className="px-5 py-8 text-sm text-neutral-500" role="status">
-                Loading audits…
+          <div className="mt-6 grid gap-x-14 lg:grid-cols-2">
+            {COVERAGE.map((c) => (
+              <div key={c.name} className="flex gap-5 border-t border-line py-4">
+                <span aria-hidden="true" className="mt-2 h-2 w-2 shrink-0 border border-ink" />
+                <div>
+                  <h3 className="text-sm font-bold">{c.name}</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-mut">{c.desc}</p>
+                </div>
               </div>
-            ) : recent.length === 0 ? (
-              <div className="px-5 py-8 text-sm text-neutral-500">
-                No audits yet. Enter a URL above to run the first one.
-              </div>
-            ) : (
-              recent.map((r) => (
-                <button
-                  key={r._id}
-                  type="button"
-                  onClick={() => navigate(`/audit/${r._id}`)}
-                  className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 text-left hover:bg-white/5"
-                >
-                  <span className="min-w-0 flex-1 basis-48 truncate text-sm font-bold text-white">
-                    {r.projectName}
-                    <span className="mt-0.5 block truncate font-mono text-xs font-normal text-neutral-500">{hostOf(r.targetUrl)}</span>
-                  </span>
-                  <StatusPill status={r.status as AuditStatus} />
-                  {r.shipReadyBadgeIssued ? (
-                    <span className="rounded border border-emerald-400/50 bg-emerald-400/10 px-2 py-1 text-xs font-bold text-emerald-300">
-                      Ship-ready
-                    </span>
-                  ) : null}
-                  <span className="ml-auto flex items-center gap-4 whitespace-nowrap font-mono text-xs">
-                    <span className="text-neutral-500" aria-label={`Health score ${r.healthScore} out of 100`}>
-                      Health{" "}
-                      <span
-                        className={
-                          r.healthScore >= 90
-                            ? "text-acid"
-                            : r.healthScore >= 70
-                              ? "text-amber-400"
-                              : "text-red-400"
-                        }
-                      >
-                        {r.healthScore}
-                      </span>
-                    </span>
-                    <span className={r.totalBugsFound > 0 ? "text-red-300" : "text-neutral-500"}>
-                      {r.totalBugsFound} bug{r.totalBugsFound === 1 ? "" : "s"}
-                    </span>
-                    <span className="hidden text-neutral-500 md:inline">
-                      {timeAgo(r._creationTime)}
-                    </span>
-                    <span aria-hidden="true" className="text-acid">↗</span>
-                  </span>
-                </button>
-              ))
-            )}
+            ))}
           </div>
         </section>
 
-        {/* Footer */}
-        <footer className="border-t border-line py-5 text-sm text-neutral-500">
-          BreakMyApp · Repeatable evidence for every run
-        </footer>
+        <PricingSection />
       </main>
+
+      <footer className="bg-ink text-paper">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-baseline justify-between gap-x-8 gap-y-2 px-5 py-6 sm:px-8">
+          <span className="font-mono text-sm font-semibold uppercase tracking-[0.14em]">BreakMyApp</span>
+          <span className="text-sm text-paper/70">Automated bug-testing with zero guesswork — every run on the record.</span>
+        </div>
+      </footer>
     </div>
   );
 }

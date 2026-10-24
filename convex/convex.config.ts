@@ -13,6 +13,9 @@ export default defineApp({
     WHOP_PLAN_ID_SHIELD: v.optional(v.string()),
     WHOP_COMPANY_ID: v.optional(v.string()),
     APP_BASE_URL: v.optional(v.string()),
+    TERAC_API_KEY: v.optional(v.string()),
+    TERAC_BASE_URL: v.optional(v.string()),
+    TERAC_STUDY_LAUNCH_TOKEN: v.optional(v.string()),
   },
 });
 

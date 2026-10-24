@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 export type Finding = {
   _id: string;
@@ -18,154 +18,215 @@ export type Finding = {
   deterministicPayload: string | null;
   screenshotUrl: string | null;
   patchReviewStatus: string | null;
+  teracVerdict?: "PENDING" | "TERAC_VERIFIED" | "TERAC_CONTESTED" | null;
+  teracReproducedCount?: number | null;
 };
 
+/** One exclusive accent: criticality lives in stamp red and nowhere else. */
 const SEV: Record<Finding["severity"], { label: string; cls: string }> = {
-  CRITICAL: { label: "critical", cls: "bg-red-500/20 text-red-400 border-red-500/60" },
-  HIGH: { label: "high", cls: "bg-amber-500/15 text-amber-400 border-amber-500/50" },
-  MEDIUM: { label: "medium", cls: "bg-neutral-700/40 text-neutral-400 border-neutral-600/50" },
+  CRITICAL: { label: "Critical", cls: "text-stamp" },
+  HIGH: { label: "High", cls: "text-ink" },
+  MEDIUM: { label: "Notice", cls: "text-mut" },
 };
 
 const CAT: Record<Finding["category"], string> = {
-  CONSOLE_CRASH: "console crash",
-  NETWORK_500_ERROR: "network 500",
-  MOBILE_OVERFLOW: "mobile overflow",
-  BROKEN_DEAD_CTA: "dead CTA",
-  EXPOSED_SECRET_OR_HEADER: "leaked secret / header",
+  CONSOLE_CRASH: "page crash (code error)",
+  NETWORK_500_ERROR: "server error (500)",
+  MOBILE_OVERFLOW: "mobile layout cutoff",
+  BROKEN_DEAD_CTA: "broken button (nothing happens)",
+  EXPOSED_SECRET_OR_HEADER: "exposed key or security header",
 };
 
 function CopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
+  const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
+  const reset = useRef<number | null>(null);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setStatus("copied");
+    } catch {
+      // Clipboard can be blocked (insecure context / permissions).
+      setStatus("failed");
+    }
+    if (reset.current) window.clearTimeout(reset.current);
+    reset.current = window.setTimeout(() => setStatus("idle"), 1600);
+  };
+
   return (
-    <button
-      type="button"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(text);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1400);
-        } catch {
-          // clipboard unavailable — ignore
-        }
-      }}
-      className="rounded border border-line bg-panel px-2 py-0.5 text-[10px] font-mono text-neutral-400 hover:border-acid/50 hover:text-acid focus:outline-none"
-    >
-      {copied ? "copied ✓" : label}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={copy}
+        className="inline-flex min-h-11 items-center font-mono text-xs uppercase tracking-[0.08em] text-mut underline decoration-dotted underline-offset-4 hover:text-ink hover:decoration-solid"
+      >
+        {status === "copied" ? "copied" : status === "failed" ? "copy failed" : label}
+      </button>
+      <span role="status" className="sr-only">
+        {status === "copied"
+          ? "Copied to clipboard"
+          : status === "failed"
+            ? "Copy failed — select the text to copy it manually"
+            : ""}
+      </span>
+    </>
   );
+}
+
+/** Human verification verdict: one ruled seal-line, not a colored chip. */
+function VerdictLine({ f }: { f: Finding }) {
+  if (f.teracVerdict === "TERAC_VERIFIED") {
+    return (
+      <span className="font-mono text-xs uppercase tracking-[0.1em] text-pass">
+        Reproduced ×{f.teracReproducedCount ?? 3} by independent testers
+      </span>
+    );
+  }
+  if (f.teracVerdict === "TERAC_CONTESTED") {
+    return (
+      <span className="font-mono text-xs uppercase tracking-[0.1em] text-stamp">
+        Contest — flagged by testers
+      </span>
+    );
+  }
+  if (f.teracVerdict === "PENDING") {
+    return (
+      <span className="font-mono text-xs uppercase tracking-[0.1em] text-mut">
+        Human verification pending
+      </span>
+    );
+  }
+  return null;
 }
 
 /** Bug #1 free proof: full unblurred detail (FR-3 free layer). */
 function DetailFinding({ f }: { f: Finding }) {
   const [shotLoaded, setShotLoaded] = useState(false);
   return (
-    <article className="rounded-lg border border-line bg-panel p-5 sm:p-6">
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className={`rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-widest ${SEV[f.severity].cls}`}>
-          {SEV[f.severity].label}
-        </span>
-        <span className="rounded border border-line bg-black/40 px-1.5 py-0.5 font-mono text-[9px] text-neutral-500">
-          {CAT[f.category] ?? f.category}
-        </span>
-        <span className="rounded-full bg-acid/10 px-2 py-0.5 font-mono text-[10px] text-acid">
-          Full proof
-        </span>
+    <article className="border-t-2 border-ink py-6">
+      <div className="kicker">
+        Bug {SEV[f.severity].label} · {CAT[f.category] ?? f.category}
       </div>
-      <h3 className="text-lg font-bold leading-snug text-white">{f.title}</h3>
+      <div className="mt-1.5 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <h3 className="text-xl font-bold tracking-tight">{f.title}</h3>
+        <VerdictLine f={f} />
+        {f.isFreePreview ? (
+          <span className="font-mono text-xs uppercase tracking-[0.1em] text-mut">
+            Free sample — full details
+          </span>
+        ) : null}
+      </div>
 
       {f.deterministicPayload != null ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[9px] text-neutral-600">seeded payload</span>
-          <span className="max-w-full truncate rounded border border-line bg-black px-2 py-0.5 font-mono text-[11px] text-acid">
+        <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="kicker">Test input</span>
+          <span className="min-w-0 max-w-full truncate font-mono text-xs text-mut">
             {f.deterministicPayload.slice(0, 120)}
           </span>
         </div>
       ) : null}
 
-      <div className="mt-5 text-sm font-bold text-white">How to reproduce</div>
-      <pre className="mt-2 whitespace-pre-wrap break-words rounded-md border border-line bg-[#0a1418] p-4 font-mono text-xs leading-6 text-neutral-300">
+      <div className="mt-5 font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mut">
+        How to recreate this bug
+      </div>
+      <pre className="mt-2 whitespace-pre-wrap break-words border border-line bg-paper px-4 py-3.5 font-mono text-xs leading-relaxed">
         {f.reproductionSteps}
       </pre>
 
       {f.rawErrorLog ? (
-        <>
-          <div className="mt-5 flex items-center justify-between">
-            <span className="text-sm font-bold text-white">Error log</span>
+        <div className="mt-5">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mut">
+              Raw error log
+            </span>
             <CopyButton text={f.rawErrorLog} label="copy error" />
           </div>
-          <pre className="terminal-scroll mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md border border-red-500/30 bg-red-500/5 p-4 font-mono text-xs leading-6 text-red-200">
+          <pre className="scroll-hair mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words bg-ink px-4 py-3.5 font-mono text-xs leading-relaxed text-paper/70">
             {f.rawErrorLog}
           </pre>
-        </>
+        </div>
       ) : null}
 
       {f.screenshotUrl ? (
-        <div className="mt-2">
+        <figure className="mt-5">
           {shotLoaded ? null : (
-            <div className="h-64 w-full animate-pulse rounded bg-neutral-800/60" />
+            <div aria-hidden="true" className="h-64 w-full animate-pulse bg-sink" />
           )}
           <img
             src={f.screenshotUrl}
             alt={`Screenshot showing ${f.title}`}
+            loading="lazy"
+            decoding="async"
             onLoad={() => setShotLoaded(true)}
             onError={() => setShotLoaded(true)}
             className={
-              "max-h-64 w-full rounded border border-line object-cover " +
+              "max-h-64 w-full border border-line object-cover " +
               (shotLoaded ? "" : "hidden")
             }
           />
-        </div>
+          <figcaption className="kicker mt-1.5">Evidence screenshot</figcaption>
+        </figure>
       ) : null}
 
       {f.aiSuggestedPatch ? (
-        <div className="mt-5 flex items-center justify-between">
-          <span className="text-sm font-bold text-white">Suggested patch</span>
-          <CopyButton text={f.aiSuggestedPatch} label="copy patch" />
+        <div className="mt-5">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-mut">
+              Suggested code fix
+            </span>
+            <CopyButton text={f.aiSuggestedPatch} label="copy fix" />
+          </div>
+          <pre className="scroll-hair mt-2 max-h-64 overflow-auto whitespace-pre bg-ink px-4 py-3.5 font-mono text-xs leading-relaxed text-phosphor">
+            {f.aiSuggestedPatch}
+          </pre>
         </div>
       ) : null}
-      {f.aiSuggestedPatch ? (
-        <pre className="terminal-scroll mt-2 max-h-64 overflow-auto whitespace-pre rounded-md border border-line bg-[#0a1418] p-4 font-mono text-xs leading-6 text-acid">
-          {f.aiSuggestedPatch}
-        </pre>
-      ) : null}
       {f.patchReviewStatus ? (
-        <div className="mt-2 font-mono text-[9px] text-neutral-600">
-          patch review: {f.patchReviewStatus === "HUMAN_MERGE_GRADED" ? "human merge-graded" : f.patchReviewStatus}
+        <div className="mt-3 flex flex-wrap items-baseline gap-x-3">
+          <span className="font-mono text-xs uppercase tracking-[0.1em] text-pass">
+            {f.patchReviewStatus === "HUMAN_MERGE_GRADED"
+              ? "Approved by human reviewers"
+              : "Review in progress"}
+          </span>
+          <span className="text-xs text-mut">
+            {f.patchReviewStatus === "HUMAN_MERGE_GRADED"
+              ? "3 human engineers reviewed and approved this fix"
+              : "review in progress"}
+          </span>
         </div>
       ) : null}
     </article>
   );
 }
 
-/** Findings #2..N while locked: redacted vault card, deliverables gated server-side. */
+/** Findings #2..N while locked: the rest of the ledger with redacted body. */
 function VaultFinding({ f, unlockable }: { f: Finding; unlockable: boolean }) {
   return (
-    <article className="rounded-lg border border-line bg-panel p-5 sm:p-6">
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <span className={`rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-widest ${SEV[f.severity].cls}`}>
-            {SEV[f.severity].label}
-          </span>
-          <span className="rounded border border-line bg-black/40 px-1.5 py-0.5 font-mono text-[9px] text-neutral-500">
-            {CAT[f.category] ?? f.category}
-          </span>
-          <span className="ml-auto font-mono text-xs text-neutral-500">Locked detail</span>
-        </div>
-        <h3 className="text-lg font-bold leading-snug text-white">{f.title}</h3>
-        <p className="mt-3 text-sm leading-6 text-neutral-500">Reproduction steps, logs, screenshots, and suggested fixes are available in the full report.</p>
-        <div className="mt-5">
-          {unlockable ? (
-            <a
-              href="#unlock"
-              className="inline-flex rounded-md border border-acid/70 px-4 py-2 text-center text-sm font-bold text-acid hover:bg-acid hover:text-ink"
-            >
-              View unlock options
-            </a>
-          ) : (
-            <div className="text-xs text-neutral-500">
-              Full detail is unavailable for this run.
-            </div>
-          )}
-        </div>
+    <article className="border-t border-line py-5">
+      <div className="kicker">
+        Bug {SEV[f.severity].label} · {CAT[f.category] ?? f.category}
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h3 className="text-base font-semibold tracking-tight text-ink/90">{f.title}</h3>
+        <VerdictLine f={f} />
+      </div>
+      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-mut">
+        Step-by-step instructions, error logs, screenshots, and ready-to-use code fixes are included in the full report.
+      </p>
+      <div className="mt-3">
+        {unlockable ? (
+          <a
+            href="#unlock"
+            className="inline-flex min-h-11 items-center border border-ink bg-paper px-4 font-mono text-xs font-semibold uppercase tracking-[0.08em] hover:bg-sink"
+          >
+            Unlock full report
+          </a>
+        ) : (
+          <div className="font-mono text-xs text-mut">
+            Details are not available for this run.
+          </div>
+        )}
+      </div>
     </article>
   );
 }

@@ -34,6 +34,9 @@ type Env = {
   readonly EXA_API_KEY: string | undefined;
   readonly SOLARI_API_KEY: string | undefined;
   readonly SOLARI_BASE_URL: string | undefined;
+  readonly TERAC_API_KEY: string | undefined;
+  readonly TERAC_BASE_URL: string | undefined;
+  readonly TERAC_STUDY_LAUNCH_TOKEN: string | undefined;
   readonly WHOP_API_KEY: string | undefined;
   readonly WHOP_COMPANY_ID: string | undefined;
   readonly WHOP_PLAN_ID_FULL_AUTOPSY: string | undefined;
