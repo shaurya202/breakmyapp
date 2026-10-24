@@ -37,41 +37,22 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
-  # Deploy the backend and build the frontend against that exact production URL.
-  # The deploy stays idle until the credentials and production HTTP URL are configured.
+  # Convex deploys after verification. Cloudflare builds from its connected main branch.
   deploy:
-    # NOTE: the `secrets` context is NOT available in job-level `if:` — using
-    # it here makes the whole workflow fail at startup. Gate the deploy step
-    # on the secrets instead (step-level `if:` does support `secrets`).
     if: >-
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: verify
     runs-on: ubuntu-latest
-    env:
-      HAS_DEPLOY_SECRETS: ${{ secrets.CONVEX_DEPLOY_KEY != '' && secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' && vars.CONVEX_SITE_URL != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            web/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
-      - run: npm ci --prefix web
-      - name: Deploy Convex and build web against production
-        if: env.HAS_DEPLOY_SECRETS == 'true'
+      - name: Deploy Convex to production
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-          VITE_WORKOS_CLIENT_ID: ${{ secrets.VITE_WORKOS_CLIENT_ID }}
-          VITE_WORKOS_REDIRECT_URI: ${{ secrets.VITE_WORKOS_REDIRECT_URI || vars.VITE_WORKOS_REDIRECT_URI }}
-        run: npx convex deploy --cmd "npm run web:build" --cmd-url-env-var-name VITE_CONVEX_URL
-      - name: Deploy to Cloudflare Workers
-        if: env.HAS_DEPLOY_SECRETS == 'true'
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CONVEX_SITE_URL: ${{ vars.CONVEX_SITE_URL }}
-        run: npx wrangler deploy --var "CONVEX_SITE_URL:$CONVEX_SITE_URL"
+        run: npx convex deploy

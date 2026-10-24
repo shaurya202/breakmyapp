@@ -123,7 +123,7 @@ export const sendNext = internalAction({
     const item: ClaimedOutreach | null = await ctx.runMutation(internal.outreachBridge.claimNext, { token, messageId });
     if (!item) return { sent: false, reason: "no_eligible_prospect_or_daily_cap" };
 
-    const reportUrl = `${baseUrl}/report/${item.auditId}`;
+    const reportUrl = `${baseUrl}/audit/${item.auditId}`;
     const unsubscribeUrl = `${siteUrl}/outreach/unsubscribe?token=${encodeURIComponent(token)}`;
     const raw = Buffer.from(mailBody({
       from: creds.sender, to: item.email, projectName: item.projectName,

@@ -42,6 +42,22 @@ describe("deterministic identity and URL validation", () => {
 });
 
 describe("audit and report lifecycle", () => {
+  it("rotates Shield scans through a backlog before rescanning the same members", async () => {
+    const t = setup();
+    for (let n = 0; n < 7; n++) {
+      await t.mutation(internal.shield.activateOrRefreshShield, {
+        whopMembershipId: `membership_${n}`,
+        enrolledUrl: `https://shield${n}.example.com`,
+      });
+    }
+    const first = await t.mutation(internal.shield.scanTodo, {});
+    expect(first).toHaveLength(5);
+    vi.advanceTimersByTime(60 * 60 * 1000);
+    const second = await t.mutation(internal.shield.scanTodo, {});
+    expect(second.slice(0, 2).map((row) => row.enrolledUrl)).toEqual([
+      "https://shield5.example.com", "https://shield6.example.com",
+    ]);
+  });
   it("only claims completed, sourced, unsuppressed prospects and honors opt-outs", async () => {
     const t = setup();
     const auditId = await t.mutation(internal.audits.createInternalRun, {
@@ -145,7 +161,7 @@ describe("audit and report lifecycle", () => {
     expect(sent).toBeDefined();
     const mime = Buffer.from(JSON.parse(sent!.body).raw, "base64url").toString("utf8");
     expect(mime).toContain("To: founder@example.com");
-    expect(mime).toContain(`https://breakmyapp.example.com/report/${auditId}`);
+    expect(mime).toContain(`https://breakmyapp.example.com/audit/${auditId}`);
     expect(mime).toContain("https://test.convex.site/outreach/unsubscribe?token=");
     expect(await t.action(internal.outreachSender.sendNext, {})).toMatchObject({ sent: false });
     expect(calls.filter((call) => call.url.endsWith("/messages/send"))).toHaveLength(1);

@@ -121,6 +121,7 @@ export default defineSchema({
     lastShieldScanAt: v.optional(v.number()),
   })
     .index("by_status", ["status"])
+    .index("by_status_and_lastShieldScanAt", ["status", "lastShieldScanAt"])
     .index("by_url", ["enrolledUrl"])
     .index("by_url_and_status", ["enrolledUrl", "status"])
     .index("by_membership", ["whopMembershipId"]),

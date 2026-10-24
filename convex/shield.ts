@@ -97,10 +97,12 @@ export const scanTodo = internalMutation({
     v.object({ membershipId: v.id("shield_memberships"), enrolledUrl: v.string() })
   ),
   handler: async (ctx) => {
+    // Missing timestamps sort before numbers. Oldest first prevents a backlog
+    // from repeatedly selecting recently scanned memberships.
     const active = await ctx.db
       .query("shield_memberships")
-      .withIndex("by_status", (q) => q.eq("status", "ACTIVE"))
-      .take(50);
+      .withIndex("by_status_and_lastShieldScanAt", (q) => q.eq("status", "ACTIVE"))
+      .take(MAX_SCANS_PER_TICK);
     const now = Date.now();
     const due = active
       .filter(

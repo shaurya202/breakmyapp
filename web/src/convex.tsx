@@ -4,7 +4,9 @@ import { AuthKitProvider, useAuth } from "@workos-inc/authkit-react";
 import type { ReactNode } from "react";
 
 const client = new ConvexReactClient(
-  import.meta.env.VITE_CONVEX_URL ?? "https://limitless-schnauzer-971.convex.cloud"
+  // Production fallback: Cloudflare's fresh-clone builds run with no VITE_* env,
+  // so the baked bundle must target the production deployment, not dev.
+  import.meta.env.VITE_CONVEX_URL ?? "https://different-yak-12.convex.cloud"
 );
 
 // Public (safe for the bundle) WorkOS AuthKit credentials from web/.env.
