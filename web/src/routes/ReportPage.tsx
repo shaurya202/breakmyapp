@@ -281,6 +281,26 @@ function ReportBody({ auditId, refetch }: { auditId: string; refetch: () => void
                 </div>
               ) : null}
 
+              {/* Real findings, none critical — per the honest funnel there is no
+                  $9 autopsy to sell (criticals only, PRD FR-4), so the purchase
+                  CTA after the free run is Launch Shield, not the unlock. */}
+              {a.status === "COMPLETED" &&
+              a.totalBugsFound > 0 &&
+              a.criticalCount === 0 &&
+              !a.payerHasShield ? (
+                <div className="border-l-2 border-ink bg-sink p-5">
+                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-mut">
+                      {a.totalBugsFound} issue{a.totalBugsFound === 1 ? "" : "s"} found · none critical
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-mut">
+                    Real issues showed up in your free run, but nothing rose to critical severity — and we only charge the $9 autopsy for critical findings. Keep it that way as you ship: Launch Shield re-tests your site after every update and reports new problems immediately.
+                  </p>
+                  <ShieldOnlyCta auditId={a.id} />
+                </div>
+              ) : null}
+
               {findings.length > 0 ? (
                 <FindingsList
                   findings={findings}
