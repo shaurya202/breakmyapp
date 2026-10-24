@@ -29,7 +29,7 @@ jobs:
           # Must be a syntactically valid Convex deployment URL: the Convex
           # client parses the deployment name at startup and fatals (captured
           # as a page error) on names like "example".
-          VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL || 'https://limitless-schnauzer-971.convex.cloud' }}
+          VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL || 'https://different-yak-12.convex.cloud' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
