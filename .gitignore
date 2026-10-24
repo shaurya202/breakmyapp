@@ -1,0 +1,17 @@
+node_modules/
+.env
+.convex/
+dist/
+*.log
+
+.env.local
+.env.*
+!.env.example
+!.env.*.example
+playwright-report/
+test-results/
+.playwright-mcp/
+brag-output*/
+.agents/
+.claude/
+skills-lock.json

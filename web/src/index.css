@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    @apply bg-ink text-neutral-200 font-sans antialiased;
+  }
+  body { min-width: 320px; }
+  button, input { font: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+  a, button { -webkit-tap-highlight-color: transparent; }
+  ::selection {
+    @apply bg-acid text-black;
+  }
+}
+
+@layer utilities {
+  .text-neutral-500 { color: #b0bec0; }
+  .text-neutral-600, .text-neutral-700 { color: #91a4a8; }
+  :focus-visible { outline: 2px solid #d5f477 !important; outline-offset: 3px; }
+  /* Locked-card redaction look (deliverables gated server-side). */
+  .redact-blur {
+    filter: blur(6px);
+    pointer-events: none;
+    user-select: none;
+  }
+  .terminal-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .terminal-scroll::-webkit-scrollbar-thumb {
+    background: #53676b;
+    border-radius: 3px;
+  }
+  .terminal-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .grid-bg {
+    background-image: linear-gradient(rgba(213, 244, 119, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(213, 244, 119, 0.06) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
