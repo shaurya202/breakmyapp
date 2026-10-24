@@ -78,4 +78,35 @@ http.route({
   }),
 });
 
+http.route({
+  path: "/outreach/unsubscribe",
+  method: "GET",
+  handler: httpAction(async (_ctx, req) => {
+    const token = new URL(req.url).searchParams.get("token") ?? "";
+    if (!/^[A-Za-z0-9_-]{30,100}$/.test(token)) {
+      return new Response("Invalid unsubscribe link.", { status: 400 });
+    }
+    return new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><title>Unsubscribe</title><body><h1>Stop BreakMyApp emails</h1><form method="POST" action="/outreach/unsubscribe"><input type="hidden" name="token" value="${token}"><button type="submit">Unsubscribe</button></form></body></html>`, {
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+    });
+  }),
+});
+
+http.route({
+  path: "/outreach/unsubscribe",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const body = await req.text();
+    const token = new URLSearchParams(body).get("token") ?? "";
+    if (!/^[A-Za-z0-9_-]{30,100}$/.test(token)) {
+      return new Response("Invalid unsubscribe link.", { status: 400 });
+    }
+    const ok = await ctx.runMutation(internal.outreachBridge.unsubscribe, { token });
+    return new Response(ok ? "You have been unsubscribed." : "Invalid unsubscribe link.", {
+      status: ok ? 200 : 404,
+      headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
+    });
+  }),
+});
+
 export default http;

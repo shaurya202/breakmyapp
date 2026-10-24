@@ -23,7 +23,7 @@ async function complete(t: Test, auditId: Id<"audits">, findings = [finding], is
 }
 
 beforeEach(() => vi.useFakeTimers());
-afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
 describe("deterministic identity and URL validation", () => {
   it.each([0, 3, 54, 55, 56, 63, 64, 119, 120, 128, 500])("matches SHA-256 for %i bytes", n => {
@@ -42,6 +42,138 @@ describe("deterministic identity and URL validation", () => {
 });
 
 describe("audit and report lifecycle", () => {
+  it("only claims completed, sourced, unsuppressed prospects and honors opt-outs", async () => {
+    const t = setup();
+    const auditId = await t.mutation(internal.audits.createInternalRun, {
+      targetUrl: "https://launch.example.com",
+      source: "EXA_AUTONOMOUS_HUNT",
+    });
+    expect(auditId).not.toBeNull();
+    const claim = () => t.mutation(internal.outreachBridge.claimNext, {
+      token: "a".repeat(32), messageId: "<outreach-test@example.com>",
+    });
+    expect(await claim()).toBeNull();
+    await complete(t, auditId!);
+    expect(await claim()).toBeNull();
+    await t.mutation(internal.hunterBridge.patchEnrichment, {
+      auditId: auditId!, agentRunId: "agent_run_test",
+      founderContact: "Founder@Example.com",
+    });
+    const selected = await claim();
+    expect(selected).toMatchObject({ auditId, email: "founder@example.com" });
+    expect(await claim()).toBeNull();
+    await t.mutation(internal.outreachBridge.markSent, {
+      outreachId: selected!.outreachId,
+      gmailMessageId: "gmail_sent_1", gmailThreadId: "gmail_thread_1",
+    });
+    expect(await t.mutation(internal.outreachBridge.recordReply, {
+      gmailMessageId: "gmail_reply_1", gmailThreadId: "gmail_thread_1",
+      from: "founder@example.com", optedOut: true,
+    })).toBe(true);
+    expect(await t.mutation(internal.outreachBridge.recordReply, {
+      gmailMessageId: "gmail_reply_1", gmailThreadId: "gmail_thread_1",
+      from: "founder@example.com", optedOut: true,
+    })).toBe(false);
+  });
+  it("requires POST to unsubscribe and rejects an invalid token", async () => {
+    const t = setup();
+    expect((await t.fetch("/outreach/unsubscribe?token=" + "b".repeat(32))).status).toBe(200);
+    expect((await t.fetch("/outreach/unsubscribe", {
+      method: "POST", body: "token=short",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    })).status).toBe(400);
+    expect((await t.fetch("/outreach/unsubscribe", {
+      method: "POST", body: `token=${"b".repeat(32)}`,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    })).status).toBe(404);
+  });
+  it("suppresses future prospect contact after a valid unsubscribe", async () => {
+    const t = setup();
+    const prepare = async (url: string) => {
+      const auditId = await t.mutation(internal.audits.createInternalRun, {
+        targetUrl: url, source: "EXA_AUTONOMOUS_HUNT",
+      });
+      await complete(t, auditId!);
+      await t.mutation(internal.hunterBridge.patchEnrichment, {
+        auditId: auditId!, agentRunId: `agent_run_${url.length}`,
+        founderContact: "founder@example.com",
+      });
+    };
+    await prepare("https://first.example.com");
+    const token = "c".repeat(32);
+    expect(await t.mutation(internal.outreachBridge.claimNext, {
+      token, messageId: "<first@example.com>",
+    })).not.toBeNull();
+    expect((await t.fetch("/outreach/unsubscribe", {
+      method: "POST", body: `token=${token}`,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    })).status).toBe(200);
+    await prepare("https://second.example.com");
+    expect(await t.mutation(internal.outreachBridge.claimNext, {
+      token: "d".repeat(32), messageId: "<second@example.com>",
+    })).toBeNull();
+  });
+  it("sends one Gmail message for a qualified audit and records its receipt", async () => {
+    vi.stubEnv("OUTREACH_ENABLED", "true");
+    vi.stubEnv("GMAIL_CLIENT_ID", "client_test");
+    vi.stubEnv("GMAIL_CLIENT_SECRET", "secret_test");
+    vi.stubEnv("GMAIL_REFRESH_TOKEN", "refresh_test");
+    vi.stubEnv("GMAIL_SENDER_EMAIL", "shauryasites@gmail.com");
+    vi.stubEnv("APP_BASE_URL", "https://breakmyapp.example.com");
+    vi.stubEnv("CONVEX_SITE_URL", "https://test.convex.site");
+    const calls: Array<{ url: string; body: string }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string, init: RequestInit) => {
+      calls.push({ url: input, body: String(init.body ?? "") });
+      if (input.includes("oauth2.googleapis.com")) {
+        return new Response(JSON.stringify({ access_token: "access_test" }), { status: 200 });
+      }
+      if (input.endsWith("/messages/send")) {
+        return new Response(JSON.stringify({ id: "gmail_sent", threadId: "gmail_thread" }), { status: 200 });
+      }
+      throw new Error(`Unexpected fetch: ${input}`);
+    }));
+    const t = setup();
+    const auditId = await t.mutation(internal.audits.createInternalRun, {
+      targetUrl: "https://launch.example.com", source: "EXA_AUTONOMOUS_HUNT",
+    });
+    await complete(t, auditId!);
+    await t.mutation(internal.hunterBridge.patchEnrichment, {
+      auditId: auditId!, agentRunId: "agent_run_test", founderContact: "founder@example.com",
+    });
+    expect(await t.action(internal.outreachSender.sendNext, {})).toMatchObject({ sent: true, auditId });
+    const sent = calls.find((call) => call.url.endsWith("/messages/send"));
+    expect(sent).toBeDefined();
+    const mime = Buffer.from(JSON.parse(sent!.body).raw, "base64url").toString("utf8");
+    expect(mime).toContain("To: founder@example.com");
+    expect(mime).toContain(`https://breakmyapp.example.com/report/${auditId}`);
+    expect(mime).toContain("https://test.convex.site/outreach/unsubscribe?token=");
+    expect(await t.action(internal.outreachSender.sendNext, {})).toMatchObject({ sent: false });
+    expect(calls.filter((call) => call.url.endsWith("/messages/send"))).toHaveLength(1);
+  });
+  it("caps autonomous audits at five in a rolling 24-hour window", async () => {
+    const t = setup();
+    for (let n = 0; n < 5; n++) {
+      expect(await t.mutation(internal.audits.createInternalRun, {
+        targetUrl: `https://launch${n}.example.com`,
+        source: "EXA_AUTONOMOUS_HUNT",
+      })).not.toBeNull();
+    }
+    expect(await t.query(internal.hunterBridge.autonomousAuditAllowance, { now: Date.now() })).toBe(0);
+    expect(await t.mutation(internal.audits.createInternalRun, {
+      targetUrl: "https://launch5.example.com",
+      source: "EXA_AUTONOMOUS_HUNT",
+    })).toBeNull();
+  });
+  it("claims Exa enrichment only once per audit", async () => {
+    const t = setup();
+    const auditId = await t.mutation(internal.audits.createInternalRun, {
+      targetUrl: "https://launch.example.com",
+      source: "EXA_AUTONOMOUS_HUNT",
+    });
+    expect(auditId).not.toBeNull();
+    expect(await t.mutation(internal.hunterBridge.claimEnrichment, { auditId: auditId! })).toBe(true);
+    expect(await t.mutation(internal.hunterBridge.claimEnrichment, { auditId: auditId! })).toBe(false);
+  });
   it("reuses queued runs and bounds invalid recent limits", async () => {
     const t = setup();
     const id = await create(t);

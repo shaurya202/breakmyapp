@@ -7,6 +7,21 @@ import { v } from "convex/values";
  */
 
 const HUNT_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const DAILY_AUTONOMOUS_AUDIT_LIMIT = 5;
+
+/** Rolling 24-hour cap, read before making any billable Exa request. */
+export const autonomousAuditAllowance = internalQuery({
+  args: { now: v.number() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const recent = await ctx.db.query("audits")
+      .withIndex("by_source", (q) => q.eq("source", "EXA_AUTONOMOUS_HUNT"))
+      .order("desc")
+      .take(DAILY_AUTONOMOUS_AUDIT_LIMIT);
+    const used = recent.filter((row) => row._creationTime >= args.now - HUNT_WINDOW_MS).length;
+    return Math.max(0, DAILY_AUTONOMOUS_AUDIT_LIMIT - used);
+  },
+});
 
 /** URLs audited in the last 24h — the hunter's dedupe bound. */
 export const listHuntedUrls24h = internalQuery({
@@ -37,8 +52,20 @@ export const listHuntedTodayFresh = internalQuery({
       .order("desc")
       .take(10);
     return rows
-      .filter((r) => r.source === "EXA_AUTONOMOUS_HUNT" && !r.exaAgentRunId)
+      .filter((r) => r.source === "EXA_AUTONOMOUS_HUNT" && !r.exaEnrichmentAttemptedAt)
       .map((r) => ({ auditId: r._id, targetUrl: r.targetUrl }));
+  },
+});
+
+/** Claim at most one billable enrichment attempt per audit. */
+export const claimEnrichment = internalMutation({
+  args: { auditId: v.id("audits") },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const audit = await ctx.db.get(args.auditId);
+    if (!audit || audit.source !== "EXA_AUTONOMOUS_HUNT" || audit.exaEnrichmentAttemptedAt) return false;
+    await ctx.db.patch(args.auditId, { exaEnrichmentAttemptedAt: Date.now() });
+    return true;
   },
 });
 

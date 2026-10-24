@@ -16,6 +16,11 @@ export default defineApp({
     TERAC_API_KEY: v.optional(v.string()),
     TERAC_BASE_URL: v.optional(v.string()),
     TERAC_STUDY_LAUNCH_TOKEN: v.optional(v.string()),
+    OUTREACH_ENABLED: v.optional(v.string()),
+    GMAIL_CLIENT_ID: v.optional(v.string()),
+    GMAIL_CLIENT_SECRET: v.optional(v.string()),
+    GMAIL_REFRESH_TOKEN: v.optional(v.string()),
+    GMAIL_SENDER_EMAIL: v.optional(v.string()),
   },
 });
 

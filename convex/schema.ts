@@ -13,6 +13,7 @@ export default defineSchema({
     founderHandleOrEmail: v.optional(v.string()),
     exaContextSummary: v.optional(v.string()),
     exaAgentRunId: v.optional(v.string()),
+    exaEnrichmentAttemptedAt: v.optional(v.number()),
     grounding: v.optional(v.array(v.string())),
     status: v.union(
       v.literal("QUEUED"),
@@ -66,6 +67,7 @@ export default defineSchema({
     errorMessage: v.optional(v.string()),
   })
     .index("by_url", ["targetUrl"])
+    .index("by_source", ["source"])
     .index("by_status", ["status"])
     .index("by_unlock", ["isUnlocked"]),
 
@@ -131,6 +133,51 @@ export default defineSchema({
     refunded: v.boolean(),
   }).index("by_payment", ["whopPaymentId"])
     .index("by_audit_and_refunded", ["auditId", "refunded"]),
+
+  outreach: defineTable({
+    auditId: v.id("audits"),
+    status: v.union(
+      v.literal("WAITING"), v.literal("SENDING"), v.literal("SENT"),
+      v.literal("REPLIED"), v.literal("OPTED_OUT"),
+      v.literal("SKIPPED"), v.literal("UNKNOWN")
+    ),
+    email: v.optional(v.string()),
+    unsubscribeToken: v.optional(v.string()),
+    messageId: v.optional(v.string()),
+    gmailMessageId: v.optional(v.string()),
+    gmailThreadId: v.optional(v.string()),
+    claimedAt: v.optional(v.number()),
+    sentAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+  })
+    .index("by_auditId", ["auditId"])
+    .index("by_email", ["email"])
+    .index("by_email_and_status", ["email", "status"])
+    .index("by_status", ["status"])
+    .index("by_unsubscribeToken", ["unsubscribeToken"])
+    .index("by_gmailThreadId", ["gmailThreadId"]),
+
+  outreach_daily: defineTable({
+    day: v.string(),
+    attempts: v.number(),
+  }).index("by_day", ["day"]),
+
+  outreach_suppressions: defineTable({
+    email: v.string(),
+    reason: v.string(),
+  }).index("by_email", ["email"]),
+
+  outreach_inbound: defineTable({
+    gmailMessageId: v.string(),
+    outreachId: v.id("outreach"),
+    receivedAt: v.number(),
+    optedOut: v.boolean(),
+  }).index("by_gmailMessageId", ["gmailMessageId"]),
+
+  outreach_sync: defineTable({
+    key: v.string(),
+    lastCheckedAt: v.number(),
+  }).index("by_key", ["key"]),
 
   // 5. Human verification panel results (schema kept per PRD; Terac wiring later)
   terac_verifications: defineTable({

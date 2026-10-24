@@ -69,10 +69,8 @@ export const applyUnlock = internalMutation({
       feeCents: whopFeeCents(args.amountCents),
     });
 
-    // PRD FR-6: Paid unlock dispatches Terac verified human labor panel
-    await ctx.scheduler.runAfter(0, internal.terac.dispatchAuditPanels, {
-      auditId: args.auditId,
-    });
+    // Human verification is a separate, explicit study flow. A paid unlock
+    // must not silently launch a billable Terac panel.
   },
 });
 

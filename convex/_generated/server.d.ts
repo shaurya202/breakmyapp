@@ -32,6 +32,11 @@ type Env = {
   readonly CONVEX_SITE_URL: string;
   readonly APP_BASE_URL: string | undefined;
   readonly EXA_API_KEY: string | undefined;
+  readonly GMAIL_CLIENT_ID: string | undefined;
+  readonly GMAIL_CLIENT_SECRET: string | undefined;
+  readonly GMAIL_REFRESH_TOKEN: string | undefined;
+  readonly GMAIL_SENDER_EMAIL: string | undefined;
+  readonly OUTREACH_ENABLED: string | undefined;
   readonly SOLARI_API_KEY: string | undefined;
   readonly SOLARI_BASE_URL: string | undefined;
   readonly TERAC_API_KEY: string | undefined;

@@ -5,7 +5,7 @@
 ## The machine
 
 ```
-Exa prospector ──15min crons──▶ hunts fresh launches (FR-1)
+Exa prospector ──hourly cron──▶ hunts fresh launches (five audits/24h)
                                         │
 paste URL ◀──── search-first ────────── │
         │                               ▼
@@ -32,6 +32,8 @@ Solari stealth Cloud Browser —— Playwright chaos, same seed,
 
 ## Quick start
 
+For the current autonomous operating limits and production setup, see [AUTONOMY.md](AUTONOMY.md).
+
 ```bash
 npm install
 npx convex dev          # backend live + typecheck loop
@@ -51,6 +53,8 @@ npm run web:dev         # frontend (VITE_CONVEX_URL in web/.env)
 | `WHOP_PLAN_ID_SHIELD` | Whop plan id | Shield button disabled |
 | `WHOP_COMPANY_ID` | Whop team id | not yet enforced |
 | `APP_BASE_URL` | Where the frontend is served (e.g. `https://app.example.dev`) | run manifest links use the .dev base |
+| `OUTREACH_ENABLED` | set to `true` only after production Gmail OAuth and public report links are verified | prospect email stays off |
+| `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, `GMAIL_SENDER_EMAIL` | Google OAuth offline access for the sender account | prospect email stays off |
 | `WORKOS_CLIENT_ID` | WorkOS dashboard (`client_01…`) | accounts are unusable; app still runs unauthenticated |
 | `VITE_CONVEX_URL` | Frontend env in web/.env | set to your Convex deployment before building |
 | `VITE_WORKOS_CLIENT_ID` | Frontend env in web/.env (same client_01… value, public) | sign-in/sign-up buttons hidden when unset |

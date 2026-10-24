@@ -22,8 +22,7 @@ import { normalizeUrl } from "./deterministic";
 
 const EXA_API = "https://api.exa.ai";
 const HARVEST_WINDOW_MS = 24 * 60 * 60 * 1000;
-const MAX_HARVEST_LAUNCHES = 10;
-const MAX_ENRICH_PER_TICK = 3;
+const MAX_HARVEST_CANDIDATES = 10;
 const POLL_INTERVAL_MS = 5_000;
 const POLL_MAX_TRIES = 24; // 2 minutes
 const PRIVATE_HOST_RE =
@@ -86,6 +85,13 @@ export const harvestLaunches = internalAction({
     const apiKey = env.EXA_API_KEY;
     if (!apiKey || !apiKey.trim()) {
       return { found: 0, reason: "exa_not_configured" as const };
+    }
+
+    const allowance = await ctx.runQuery(internal.hunterBridge.autonomousAuditAllowance, {
+      now: Date.now(),
+    });
+    if (allowance === 0) {
+      return { found: 0, reason: "daily_autonomous_audit_limit" as const };
     }
 
     const hunted24h = await ctx.runQuery(internal.hunterBridge.listHuntedUrls24h, {
@@ -153,7 +159,8 @@ export const harvestLaunches = internalAction({
 
     let found = 0;
     let skipped = 0;
-    for (const l of launches.slice(0, MAX_HARVEST_LAUNCHES)) {
+    for (const l of launches.slice(0, MAX_HARVEST_CANDIDATES)) {
+      if (found >= Math.min(1, allowance)) break;
       const name = (l.product_name ?? "").toString().trim().slice(0, 60);
       const rawUrl = (l.target_url ?? "").toString().trim();
       const oneLiner = (l.one_liner ?? "").toString().trim().slice(0, 280);
@@ -191,21 +198,14 @@ export const harvestLaunches = internalAction({
       if (auditId) {
         found += 1;
         huntedSet.add(normalized);
+        await ctx.scheduler.runAfter(0, internal.exaHunter.enrichOne, {
+          auditId,
+          targetUrl: normalized,
+        });
       }
     }
 
-    // Phase 2 for the freshest rows.
-    const fresh = await ctx.runQuery(internal.hunterBridge.listHuntedTodayFresh, {});
-    let enriched = 0;
-    for (const row of fresh.slice(0, MAX_ENRICH_PER_TICK)) {
-      await ctx.scheduler.runAfter(0, internal.exaHunter.enrichOne, {
-        auditId: row.auditId,
-        targetUrl: row.targetUrl,
-      });
-      enriched += 1;
-    }
-
-    return { found, skipped: skipped + enriched, reason: undefined };
+    return { found, skipped, reason: undefined };
   },
 });
 
@@ -222,6 +222,9 @@ export const enrichOne = internalAction({
   handler: async (ctx, args) => {
     const apiKey = env.EXA_API_KEY;
     if (!apiKey || !apiKey.trim()) return { enriched: false, reason: "exa_not_configured" as const };
+    if (!await ctx.runMutation(internal.hunterBridge.claimEnrichment, { auditId: args.auditId })) {
+      return { enriched: false, reason: "enrichment_already_attempted" as const };
+    }
 
     const startBody = {
       query:
